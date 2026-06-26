@@ -1,0 +1,103 @@
+import Foundation
+
+/// An API backend. OpenAI and Groq share the OpenAI-compatible Chat Completions
+/// surface; Anthropic has its own Messages API.
+enum APIVendor: String {
+    case openAI
+    case anthropic
+    case groq
+
+    var displayName: String {
+        switch self {
+        case .openAI: return "OpenAI"
+        case .anthropic: return "Claude"
+        case .groq: return "Groq"
+        }
+    }
+
+    /// Keychain account under which this vendor's API key is stored.
+    var keychainAccount: String {
+        switch self {
+        case .openAI: return "openai-api-key"
+        case .anthropic: return "anthropic-api-key"
+        case .groq: return "groq-api-key"
+        }
+    }
+
+    var keyPlaceholder: String {
+        switch self {
+        case .openAI: return "OpenAI API キー (sk-...)"
+        case .anthropic: return "Claude API キー (sk-ant-...)"
+        case .groq: return "Groq API キー (gsk_...)"
+        }
+    }
+
+    /// Chat Completions endpoint for OpenAI-compatible vendors; nil for Anthropic.
+    var openAICompatibleEndpoint: URL? {
+        switch self {
+        case .openAI: return URL(string: "https://api.openai.com/v1/chat/completions")
+        case .groq: return URL(string: "https://api.groq.com/openai/v1/chat/completions")
+        case .anthropic: return nil
+        }
+    }
+}
+
+/// A selectable review model. The catalog is the single source of truth for the
+/// model picker; adding a model is one entry here.
+struct ReviewModel: Identifiable, Hashable {
+    let id: String              // stable id for persistence
+    let displayName: String
+    let vendor: APIVendor
+    let apiModelID: String      // exact id sent to the API
+    let hint: String
+    let reasoningEffort: String? // gpt-oss reasoning models only
+
+    static let catalog: [ReviewModel] = [
+        ReviewModel(id: "groq-gpt-oss-120b",
+                    displayName: "Groq · gpt-oss-120b（推奨・高速高品質）",
+                    vendor: .groq, apiModelID: "openai/gpt-oss-120b",
+                    hint: "高速のままトーン判定を強化。トゲ取り重視の既定。reasoning_effort=medium。",
+                    reasoningEffort: "medium"),
+        ReviewModel(id: "groq-gpt-oss-20b",
+                    displayName: "Groq · gpt-oss-20b（最速）",
+                    vendor: .groq, apiModelID: "openai/gpt-oss-20b",
+                    hint: "最速・最安。摩擦を限界まで下げたい時。reasoning_effort=low。",
+                    reasoningEffort: "low"),
+        ReviewModel(id: "openai-gpt-4.1-nano",
+                    displayName: "OpenAI · gpt-4.1-nano（高速）",
+                    vendor: .openAI, apiModelID: "gpt-4.1-nano",
+                    hint: "OpenAI の最速・最安クラス。非推論で安定。",
+                    reasoningEffort: nil),
+        ReviewModel(id: "openai-gpt-4.1-mini",
+                    displayName: "OpenAI · gpt-4.1-mini（バランス）",
+                    vendor: .openAI, apiModelID: "gpt-4.1-mini",
+                    hint: "速度と品質のバランス。",
+                    reasoningEffort: nil),
+        ReviewModel(id: "anthropic-claude-sonnet-4-6",
+                    displayName: "Claude · Sonnet 4.6（品質）",
+                    vendor: .anthropic, apiModelID: "claude-sonnet-4-6",
+                    hint: "トーンのニュアンス重視。",
+                    reasoningEffort: nil),
+        ReviewModel(id: "anthropic-claude-opus-4-8",
+                    displayName: "Claude · Opus 4.8（最高品質）",
+                    vendor: .anthropic, apiModelID: "claude-opus-4-8",
+                    hint: "最も丁寧。重要なメッセージ向け（低速）。",
+                    reasoningEffort: nil),
+    ]
+
+    /// Fastest model; the default selection.
+    static let defaultModel = catalog[0]
+
+    static func find(id: String?) -> ReviewModel {
+        catalog.first { $0.id == id } ?? defaultModel
+    }
+}
+
+/// Lightweight app-wide settings backed by UserDefaults.
+enum AppSettings {
+    static let selectedModelKey = "selectedModelID"
+
+    static func selectedModel() -> ReviewModel {
+        ReviewModel.find(id: UserDefaults.standard.string(forKey: selectedModelKey))
+    }
+}
