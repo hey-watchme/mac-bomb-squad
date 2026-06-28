@@ -7,7 +7,7 @@ updated whenever a phase starts, finishes, or changes direction.
 
 - Repository: `git@github.com:hey-watchme/mac-bomb-squad.git`
 - Branch: `main`
-- Last pushed commit: `0df4fc9 Rename app to Bomb Squad and add infra plan`
+- Last pushed commit: `5c40db5 Add implementation roadmap`
 - App target: `BombSquad`
 - Bundle ID: `com.heywatchme.bombsquad`
 - Generated project: `BombSquad.xcodeproj`
@@ -42,7 +42,7 @@ Status: ready
 
 ## Phase 1: Supabase Schema
 
-Status: next
+Status: in progress
 
 Goal: create app-owned tables that can coexist with older projects in the same
 Supabase instance.
@@ -213,9 +213,9 @@ Possible work:
 
 ## First Five Tasks
 
-1. Define the gateway contract and environment variable names in
+1. Completed: define the gateway contract and environment variable names in
    `docs/api-contract.md`.
-2. Write `supabase/migrations/0001_bs_core_schema.sql`.
+2. Next: write `supabase/migrations/0001_bs_core_schema.sql`.
 3. Write `docs/supabase-setup.md` with required project URL, anon key, service
    role key, redirect URLs, and provider configuration steps.
 4. Add a small Supabase config layer in macOS using environment or local config
