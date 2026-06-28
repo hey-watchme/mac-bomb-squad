@@ -21,19 +21,32 @@ final class ReviewViewModel: ObservableObject {
     @Published var isTranscribing = false
     /// Briefly toggled true after a successful deploy for toast feedback.
     @Published var didDeploy = false
+    /// Target language for the deliverable (`revisedDraft`). Default Japanese.
+    @Published var outputLanguage: OutputLanguage = .japanese
 
-    /// The exact draft text that produced the current `result`. Used to decide
-    /// whether the next ⌘⌘ should re-review (draft changed) or deploy (unchanged).
+    /// The exact draft text and language that produced the current `result`. Used
+    /// to decide whether the next Right-Shift double-tap should re-review (draft
+    /// or language changed) or deploy (unchanged).
     private var reviewedDraft: String?
+    private var reviewedLanguage: OutputLanguage?
+
+    /// Direction of this session: composing an outgoing draft (review/soften)
+    /// or transforming a received message (make it readable). Drives the prompt.
+    let mode: ReviewMode
 
     /// Optional fixed provider (used by tests/previews). When nil, the provider
     /// is built from the user's selection at review time.
     private let overrideProvider: ReviewProvider?
     private let deployer: Deployer
 
-    nonisolated init(provider: ReviewProvider? = nil, deployer: Deployer = ClipboardDeployer()) {
+    nonisolated init(
+        provider: ReviewProvider? = nil,
+        deployer: Deployer = ClipboardDeployer(),
+        mode: ReviewMode = .compose
+    ) {
         self.overrideProvider = provider
         self.deployer = deployer
+        self.mode = mode
     }
 
     /// Resolve the engine to use for the next review, based on the selected model.
@@ -57,28 +70,25 @@ final class ReviewViewModel: ObservableObject {
         let started = Date()
         defer { isLoading = false }
         let input = draft
+        let language = outputLanguage
         do {
-            let result = try await currentProvider().review(draft: input)
+            let result = try await currentProvider().review(draft: input, mode: mode, language: language)
             self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
             self.lastModelName = model.displayName
             self.result = result
             self.revisedDraft = result.revisedText
             self.reviewedDraft = input
+            self.reviewedLanguage = language
         } catch {
             self.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
-    }
-
-    /// Reset the adopted revision back to the model's suggestion.
-    func resetRevisionToSuggestion() {
-        revisedDraft = result?.revisedText ?? ""
     }
 
     var canDeployDraft: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// True when there is nothing to act on — used so ⌘⌘ on an empty panel
+    /// True when there is nothing to act on — used so a Right-Shift double-tap on an empty panel
     /// closes it (a "never mind" gesture) instead of doing nothing.
     var isEmptyDraft: Bool {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -97,15 +107,15 @@ final class ReviewViewModel: ObservableObject {
     }
 
     /// True when a review exists but the draft has changed since it was made,
-    /// so the current review is stale and ⌘⌘ should re-review rather than deploy.
+    /// so the current review is stale and the Right-Shift double-tap should re-review rather than deploy.
     var needsReReview: Bool {
-        result != nil && reviewedDraft != draft
+        result != nil && (reviewedDraft != draft || reviewedLanguage != outputLanguage)
     }
 
     /// One unified "next step":
     /// - no review yet, or draft changed since the last review → review
     /// - review is current (draft unchanged) → deploy the revision
-    /// Driven by both ⌘⌘ and Enter.
+    /// Driven by both the Right-Shift double-tap and Enter.
     func advance() {
         if result != nil && !needsReReview {
             deployRevision()

@@ -4,9 +4,9 @@ import SwiftUI
 
 extension Notification.Name {
     /// Posted by the menu-bar item to summon the panel.
-    static let showPanel = Notification.Name("JustAMoment.showPanel")
+    static let showPanel = Notification.Name("BombSquad.showPanel")
     /// Posted from the panel (Esc) to cancel/close it.
-    static let closePanel = Notification.Name("JustAMoment.closePanel")
+    static let closePanel = Notification.Name("BombSquad.closePanel")
 }
 
 /// Owns the global hotkey and the floating review panel summoned by ⌘J.
@@ -15,7 +15,7 @@ extension Notification.Name {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var currentViewModel: ReviewViewModel?
-    private let gesture = CommandGestureMonitor()
+    private let gesture = ShiftGestureMonitor()
     private let recorder = AudioRecorder()
     private let transcriber = GroqTranscriber()
     /// Guards against duplicate begin/end callbacks so the cues fire exactly once.
@@ -33,8 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard granted else { return }
             DispatchQueue.main.async { self?.recorder.warmUp() }
         }
-        // ⌘⌘ (double-tap) = next: summon → review → deploy.
-        // ⌘ long-press = hold-to-talk dictation. ⌘J toggles the panel.
+        // Right Shift double-tap = next: summon → review → deploy.
+        // Right Shift long-press = hold-to-talk dictation. ⌘J toggles the panel.
         HotKeyCenter.shared.onHotKey = { [weak self] in self?.togglePanel() }
         HotKeyCenter.shared.register()
         gesture.onDoubleTap = { [weak self] in self?.advance() }
@@ -60,12 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel != nil { closePanel() }
     }
 
-    /// ⌘⌘: if the panel is closed, summon it. If it's open and empty, close it
-    /// (a "never mind" gesture). Otherwise advance the flow.
+    /// Right Shift double-tap: if the panel is closed, summon it. If it's open
+    /// and empty, close it (a "never mind" gesture). Otherwise advance the flow.
     /// Invoked from the key-event monitor, which delivers on the main thread.
     private func advance() {
         if panel == nil {
-            showPanel()
+            summon()
             return
         }
         MainActor.assumeIsolated {
@@ -77,7 +77,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// ⌘ long-press begins: give immediate feedback (sound + red mic) the instant
+    /// Summon the panel. If the frontmost app has a current selection, pull it in
+    /// as a received message to transform (receiving side); otherwise open the
+    /// empty compose pane (sending side). The selection grab must happen before
+    /// our panel steals focus, so it runs here while the target is still front.
+    private func summon() {
+        SelectionGrabber.grab { [weak self] selection in
+            if let selection {
+                self?.showPanel(prefill: selection, mode: .transform)
+            } else {
+                self?.showPanel(mode: .compose)
+            }
+        }
+    }
+
+    /// Right Shift long-press begins: give immediate feedback (sound + red mic) the instant
     /// the gesture is recognized, then start the recorder. The mic's warm-up adds
     /// ~0.5s, but firing the cue first makes it feel snappy; the tiny head clip is
     /// negligible in practice.
@@ -101,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// ⌘ released: stop recording, transcribe, and append the text to the draft.
+    /// Right Shift released: stop recording, transcribe, and append the text to the draft.
     private func stopDictationAndTranscribe() {
         guard isDictating else { return }
         isDictating = false
@@ -147,19 +161,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showPanel() {
+    private func showPanel(prefill: String? = nil, mode: ReviewMode = .compose) {
         // Capture the target BEFORE our panel activates and steals focus.
         let target = NSWorkspace.shared.frontmostApplication
-        let deployer = PasteDeployer(targetApp: target) { [weak self] in self?.closePanel() }
-        let viewModel = ReviewViewModel(deployer: deployer)
+        let deployer: Deployer
+        switch mode {
+        case .compose:
+            deployer = PasteDeployer(targetApp: target) { [weak self] in self?.closePanel() }
+        case .transform:
+            // Received message: never write back into the sender's field. The
+            // readable version is for reading, so "send" only copies to clipboard.
+            deployer = ClipboardDeployer()
+        }
+        let viewModel = ReviewViewModel(deployer: deployer, mode: mode)
         currentViewModel = viewModel
+        if let prefill {
+            MainActor.assumeIsolated {
+                viewModel.draft = prefill
+                // Receiving side: the selection is already captured, so run the
+                // transform immediately — the panel opens with the readable
+                // result already showing on the right (one stop, no second tap).
+                if mode == .transform {
+                    Task { await viewModel.runReview() }
+                }
+            }
+        }
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 920, height: 620),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
-        panel.title = "just a moment"
+        panel.title = "Bomb Squad"
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .floating

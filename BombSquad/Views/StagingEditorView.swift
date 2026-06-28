@@ -5,39 +5,44 @@ import SwiftUI
 struct StagingEditorView: View {
     @ObservedObject var viewModel: ReviewViewModel
     /// Shared focus across both editors (drives the blue highlight).
-    let focus: FocusState<FocusField?>.Binding
+    @Binding var focusedField: FocusField?
 
-    private var isFocused: Bool { focus.wrappedValue == .draft }
+    private var isFocused: Bool { focusedField == .draft }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("ステージング", systemImage: "square.dashed")
+                Label("原文", systemImage: "doc.plaintext")
                     .font(.headline)
                 Spacer()
                 Text("\(viewModel.draft.count) 文字")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                SettingsLink {
+                    Label("設定", systemImage: "gearshape")
+                }
+                .labelStyle(.iconOnly)
+                .help("APIキーとモデルを設定します")
             }
 
-            TextEditor(text: $viewModel.draft)
-                .font(.body)
-                .scrollContentBackground(.hidden)
+            // Enter sends the original text as-is (after the IME confirms any
+            // in-progress conversion); Shift+Enter inserts a newline.
+            SendableTextEditor(
+                text: $viewModel.draft,
+                focusedField: $focusedField,
+                field: .draft,
+                onSend: { viewModel.deployDraft() },
+                onEscape: { NotificationCenter.default.post(name: .closePanel, object: nil) }
+            )
                 .padding(8)
                 .background(EditorFocusBackground(isFocused: isFocused))
-                .focused(focus, equals: .draft)
                 .overlay(alignment: .topLeading) {
                     if viewModel.draft.isEmpty {
-                        Text("ここに送る前の下書きを入力／ペースト（⌘⌘ で次へ / Esc で閉じる / ⌘長押しで音声）")
+                        Text("ここに送る前の下書きを入力／ペースト（Enter で送信 / 右Shift2回で次へ / Shift+Enter で改行 / Esc で閉じる / 右Shift長押しで音声）")
                             .foregroundStyle(.tertiary)
                             .padding(16)
                             .allowsHitTesting(false)
                     }
-                }
-                // Enter is a normal newline; advancing is ⌘⌘ only.
-                .onKeyPress(.escape) {
-                    NotificationCenter.default.post(name: .closePanel, object: nil)
-                    return .handled
                 }
 
             HStack(spacing: 8) {
@@ -54,7 +59,7 @@ struct StagingEditorView: View {
                 Button {
                     viewModel.deployDraft()
                 } label: {
-                    Label("原文をデプロイ", systemImage: "paperplane")
+                    Label("送信", systemImage: "paperplane.fill")
                 }
                 .disabled(!viewModel.canDeployDraft)
                 .help("レビューを使わず、原文のまま送信先へ入力します")

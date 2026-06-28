@@ -13,7 +13,7 @@ struct ClaudeClient: ReviewProvider {
         self.session = session
     }
 
-    func review(draft: String) async throws -> ReviewResult {
+    func review(draft: String, mode: ReviewMode, language: OutputLanguage) async throws -> ReviewResult {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ProviderError.emptyDraft }
         guard let apiKey = KeychainStore.apiKey(account: APIVendor.anthropic.keychainAccount) else {
@@ -25,7 +25,7 @@ struct ClaudeClient: ReviewProvider {
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody(draft: trimmed))
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody(draft: trimmed, mode: mode, language: language))
 
         let (data, response): (Data, URLResponse)
         do {
@@ -47,15 +47,20 @@ struct ClaudeClient: ReviewProvider {
 
     // MARK: - Request
 
-    private func requestBody(draft: String) -> [String: Any] {
-        [
+    private func requestBody(draft: String, mode: ReviewMode, language: OutputLanguage) -> [String: Any] {
+        let system = mode == .transform ? ReviewPrompt.transformSystem : ReviewPrompt.system
+        let task = mode == .transform
+            ? "次の受信メッセージを読みやすく整理してください:\n\n\(draft)"
+            : "次の下書きをレビューしてください:\n\n\(draft)"
+        let userText = task + "\n\n" + ReviewPrompt.languageInstruction(language)
+        return [
             "model": model,
             "max_tokens": 2048,
-            "system": ReviewPrompt.system,
+            "system": system,
             "tools": [reviewTool],
             "tool_choice": ["type": "tool", "name": "submit_review"],
             "messages": [
-                ["role": "user", "content": "次の下書きをレビューしてください:\n\n\(draft)"],
+                ["role": "user", "content": userText],
             ],
         ]
     }

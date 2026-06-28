@@ -1,13 +1,16 @@
 import AppKit
 
-/// Distinguishes Command-key gestures, globally and within the app:
+/// Distinguishes Right-Shift gestures, globally and within the app:
 /// - double-tap  → "next" (summon / review / deploy)
 /// - long-press  → hold-to-talk dictation (began on hold, ended on release)
 ///
-/// A gesture is only recognized when Command is pressed alone; ⌘C/⌘V/⌘A etc.
-/// (Command + another key) cancel it, so editing shortcuts never trigger it.
+/// Right Shift is used because the Command key conflicts with everyday
+/// shortcuts (⌘C/⌘V/…): merely holding ⌘ before a shortcut would fire the
+/// gesture. Right Shift is rarely held alone, and a gesture is only recognized
+/// when Right Shift is pressed without any other modifier; pressing another key
+/// (e.g. typing a capital letter) cancels the pending gesture.
 /// Requires Accessibility permission (already requested for paste injection).
-final class CommandGestureMonitor {
+final class ShiftGestureMonitor {
     var onDoubleTap: (() -> Void)?
     var onLongPressBegan: (() -> Void)?
     var onLongPressEnded: (() -> Void)?
@@ -15,13 +18,13 @@ final class CommandGestureMonitor {
     private let doubleTapThreshold: TimeInterval = 0.35
     private let longPressThreshold: TimeInterval = 0.3
     private var lastTapTime: TimeInterval = 0
-    private var commandDownClean = false
+    private var shiftDownClean = false
     private var isLongPressing = false
     private var longPressWork: DispatchWorkItem?
     private var monitors: [Any] = []
 
-    // Left/right Command physical key codes.
-    private let commandKeyCodes: Set<UInt16> = [54, 55]
+    // Right Shift physical key code.
+    private let shiftKeyCode: UInt16 = 60
 
     func start() {
         let flags: (NSEvent) -> Void = { [weak self] in self?.handleFlags($0) }
@@ -34,17 +37,17 @@ final class CommandGestureMonitor {
     }
 
     private func handleFlags(_ event: NSEvent) {
-        guard commandKeyCodes.contains(event.keyCode) else {
-            // Another modifier changed → not a clean Command gesture.
+        guard event.keyCode == shiftKeyCode else {
+            // Another modifier changed → not a clean Right-Shift gesture.
             invalidatePending()
             return
         }
 
-        if event.modifierFlags.contains(.command) {
+        if event.modifierFlags.contains(.shift) {
             // Pressed: clean only if no other modifier is held.
-            let others: NSEvent.ModifierFlags = [.shift, .option, .control, .function]
-            commandDownClean = event.modifierFlags.isDisjoint(with: others)
-            if commandDownClean { scheduleLongPress() }
+            let others: NSEvent.ModifierFlags = [.command, .option, .control, .function]
+            shiftDownClean = event.modifierFlags.isDisjoint(with: others)
+            if shiftDownClean { scheduleLongPress() }
         } else {
             // Released.
             longPressWork?.cancel()
@@ -52,7 +55,7 @@ final class CommandGestureMonitor {
             if isLongPressing {
                 isLongPressing = false
                 onLongPressEnded?()
-            } else if commandDownClean {
+            } else if shiftDownClean {
                 let now = event.timestamp
                 if now - lastTapTime <= doubleTapThreshold {
                     lastTapTime = 0
@@ -61,14 +64,14 @@ final class CommandGestureMonitor {
                     lastTapTime = now
                 }
             }
-            commandDownClean = false
+            shiftDownClean = false
         }
     }
 
     private func scheduleLongPress() {
         longPressWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.commandDownClean, !self.isLongPressing else { return }
+            guard let self, self.shiftDownClean, !self.isLongPressing else { return }
             self.isLongPressing = true
             self.onLongPressBegan?()
         }
@@ -79,7 +82,7 @@ final class CommandGestureMonitor {
     /// A non-modifier key was pressed → cancel any pending tap/long-press.
     /// Does not stop an already-running dictation (isLongPressing stays true).
     private func invalidatePending() {
-        commandDownClean = false
+        shiftDownClean = false
         lastTapTime = 0
         longPressWork?.cancel()
         longPressWork = nil

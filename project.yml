@@ -1,6 +1,6 @@
-name: JustAMoment
+name: BombSquad
 options:
-  bundleIdPrefix: com.matsumotokaya
+  bundleIdPrefix: com.heywatchme
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -10,19 +10,19 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
 targets:
-  JustAMoment:
+  BombSquad:
     type: application
     platform: macOS
     sources:
-      - JustAMoment
+      - BombSquad
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.matsumotokaya.justamoment
-        PRODUCT_NAME: JustAMoment
+        PRODUCT_BUNDLE_IDENTIFIER: com.heywatchme.bombsquad
+        PRODUCT_NAME: BombSquad
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "音声入力（ASR）で下書きを作成するためにマイクを使用します。"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
-        INFOPLIST_KEY_CFBundleDisplayName: "just a moment"
+        INFOPLIST_KEY_CFBundleDisplayName: "Bomb Squad"
         # Stable signing with the Apple Development certificate so the Keychain
         # "Always Allow" choice persists across rebuilds (ad-hoc "-" changes the
         # signature every build and re-prompts each time).

@@ -11,7 +11,9 @@ enum FocusField: Hashable {
 /// The split mirrors the "staging → live" deploy metaphor.
 struct ContentView: View {
     @StateObject private var viewModel: ReviewViewModel
-    @FocusState private var focus: FocusField?
+    /// Which editor is first responder. Bridged into the NSTextView-backed
+    /// editors so focus can be both driven and observed.
+    @State private var focusedField: FocusField?
 
     /// Defaults to a clipboard-deploying view model (standalone window). The
     /// hotkey panel injects a `PasteDeployer`-backed one.
@@ -21,19 +23,19 @@ struct ContentView: View {
 
     var body: some View {
         HSplitView {
-            StagingEditorView(viewModel: viewModel, focus: $focus)
+            StagingEditorView(viewModel: viewModel, focusedField: $focusedField)
                 .frame(minWidth: 360, idealWidth: 440)
-            ReviewPanelView(viewModel: viewModel, focus: $focus)
+            ReviewPanelView(viewModel: viewModel, focusedField: $focusedField)
                 .frame(minWidth: 380, idealWidth: 460)
         }
         .frame(minWidth: 820, minHeight: 560)
         .onAppear {
             // Defer so the panel is key before focusing the original editor.
-            DispatchQueue.main.async { focus = .draft }
+            DispatchQueue.main.async { focusedField = .draft }
         }
         .onChange(of: viewModel.result) { _, newValue in
             // After a review, the result becomes the thing to deploy → focus it.
-            if newValue != nil { focus = .revision }
+            if newValue != nil { focusedField = .revision }
         }
     }
 }

@@ -24,7 +24,7 @@ struct OpenAICompatibleClient: ReviewProvider {
         self.session = session
     }
 
-    func review(draft: String) async throws -> ReviewResult {
+    func review(draft: String, mode: ReviewMode, language: OutputLanguage) async throws -> ReviewResult {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ProviderError.emptyDraft }
         guard let apiKey = KeychainStore.apiKey(account: keychainAccount) else {
@@ -35,7 +35,7 @@ struct OpenAICompatibleClient: ReviewProvider {
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody(draft: trimmed))
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody(draft: trimmed, mode: mode, language: language))
 
         let (data, response): (Data, URLResponse)
         do {
@@ -57,8 +57,11 @@ struct OpenAICompatibleClient: ReviewProvider {
 
     // MARK: - Request
 
-    private func requestBody(draft: String) -> [String: Any] {
-        var userContent = "次の下書きをレビューしてください:\n\n\(draft)"
+    private func requestBody(draft: String, mode: ReviewMode, language: OutputLanguage) -> [String: Any] {
+        let task = mode == .transform
+            ? "次の受信メッセージを読みやすく整理してください:\n\n\(draft)"
+            : "次の下書きをレビューしてください:\n\n\(draft)"
+        var userContent = task + "\n\n" + ReviewPrompt.languageInstruction(language)
 
         var body: [String: Any] = [
             "model": apiModelID,
@@ -81,8 +84,9 @@ struct OpenAICompatibleClient: ReviewProvider {
             body["reasoning_effort"] = reasoningEffort
         }
 
+        let system = mode == .transform ? ReviewPrompt.transformSystem : ReviewPrompt.system
         body["messages"] = [
-            ["role": "system", "content": ReviewPrompt.system],
+            ["role": "system", "content": system],
             ["role": "user", "content": userContent],
         ]
         return body
