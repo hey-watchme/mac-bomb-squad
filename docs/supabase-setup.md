@@ -42,6 +42,14 @@ These values should be prepared before client or gateway implementation starts.
 - `BOMB_SQUAD_SUPABASE_ANON_KEY`
 - `BOMB_SQUAD_API_BASE_URL`
 
+Current runtime resolution order:
+
+1. Xcode Scheme environment variables
+2. `Info.plist` keys with the same names
+
+That behavior is implemented in
+[BombSquadConfig.swift](/Users/kaya.matsumoto/projects/just-a-moment/BombSquad/Services/BombSquadConfig.swift:1).
+
 ### For Vercel / web
 
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -162,6 +170,6 @@ order by tablename;
 
 ## Next Work After Setup
 
-- Add a small macOS Supabase config layer.
+- Add the first macOS auth client on top of the config layer.
 - Add the first auth client for email OTP.
 - Scaffold the web AI gateway.

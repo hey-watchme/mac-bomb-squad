@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var anthropicKey: String = ""
     @State private var groqKey: String = ""
     @State private var saved = false
+    @State private var config = BombSquadConfig.snapshot()
 
     private var selectedModel: ReviewModel {
         ReviewModel.find(id: selectedModelID)
@@ -41,6 +42,17 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            Section("Backend / Auth 準備") {
+                configRow("Product API", entry: config.apiBaseURL)
+                configRow("Supabase URL", entry: config.supabaseURL)
+                configRow("Supabase anon key", entry: config.supabaseAnonKey)
+
+                Text("値の読み取り順は `ProcessInfo.environment` → `Info.plist` です。まずは Xcode Scheme の環境変数で設定する想定です。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section {
                 Text("キーは Keychain に保存され、リポジトリやファイルには書き込まれません。設定したベンダーのモデルだけ利用できます。")
                     .font(.caption).foregroundStyle(.secondary)
@@ -63,6 +75,7 @@ struct SettingsView: View {
     }
 
     private func load() {
+        config = BombSquadConfig.snapshot()
         groqKey = KeychainStore.apiKey(account: APIVendor.groq.keychainAccount) ?? ""
         openAIKey = KeychainStore.apiKey(account: APIVendor.openAI.keychainAccount) ?? ""
         anthropicKey = KeychainStore.apiKey(account: APIVendor.anthropic.keychainAccount) ?? ""
@@ -73,5 +86,18 @@ struct SettingsView: View {
         KeychainStore.saveAPIKey(openAIKey, account: APIVendor.openAI.keychainAccount)
         KeychainStore.saveAPIKey(anthropicKey, account: APIVendor.anthropic.keychainAccount)
         saved = true
+    }
+
+    @ViewBuilder
+    private func configRow(_ title: String, entry: BombSquadConfig.Entry) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(entry.redactedValue)
+                .font(.caption)
+                .foregroundStyle(entry.isConfigured ? Color.secondary : .red)
+                .textSelection(.enabled)
+        }
+        .help(entry.key)
     }
 }
