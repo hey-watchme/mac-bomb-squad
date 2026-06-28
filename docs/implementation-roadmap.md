@@ -215,10 +215,10 @@ Possible work:
 
 1. Completed: define the gateway contract and environment variable names in
    `docs/api-contract.md`.
-2. Next: write `supabase/migrations/0001_bs_core_schema.sql`.
-3. Write `docs/supabase-setup.md` with required project URL, anon key, service
+2. Completed: write `supabase/migrations/0001_bs_core_schema.sql`.
+3. Completed: write `docs/supabase-setup.md` with required project URL, anon key, service
    role key, redirect URLs, and provider configuration steps.
-4. Add a small Supabase config layer in macOS using environment or local config
+4. Next: add a small Supabase config layer in macOS using environment or local config
    placeholders without committing secrets.
 5. Build the first `AuthClient` and a minimal account/settings UI for email OTP.
 
