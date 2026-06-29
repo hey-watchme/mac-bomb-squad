@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage(AppSettings.selectedModelKey) private var selectedModelID = ReviewModel.defaultModel.id
 
+    @StateObject private var authViewModel = AuthViewModel()
     @State private var openAIKey: String = ""
     @State private var anthropicKey: String = ""
     @State private var groqKey: String = ""
@@ -42,6 +43,8 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            AuthView(viewModel: authViewModel, config: config)
+
             Section("Backend / Auth 準備") {
                 configRow("Product API", entry: config.apiBaseURL)
                 configRow("Supabase URL", entry: config.supabaseURL)
@@ -67,7 +70,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 460)
+        .frame(width: 520, height: 620)
         .onAppear(perform: load)
         .onChange(of: openAIKey) { _, _ in saved = false }
         .onChange(of: anthropicKey) { _, _ in saved = false }

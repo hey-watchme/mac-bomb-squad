@@ -7,10 +7,16 @@ updated whenever a phase starts, finishes, or changes direction.
 
 - Repository: `git@github.com:hey-watchme/mac-bomb-squad.git`
 - Branch: `main`
-- Last pushed commit: `5c40db5 Add implementation roadmap`
+- Last pushed commit: `13a015a Add Supabase config layer`
 - App target: `BombSquad`
 - Bundle ID: `com.heywatchme.bombsquad`
 - Generated project: `BombSquad.xcodeproj`
+- Supabase core schema SQL has been applied in the shared project.
+- New web shell: `web/`
+- Next session note:
+  - this repo directory may be renamed from `just-a-moment` to `bomb-squad`
+  - re-check cwd and local file links after reopening a new session
+  - Supabase MCP should be reconnected against the Bomb Squad-only account/project
 - Build check:
 
 ```bash
@@ -42,7 +48,7 @@ Status: ready
 
 ## Phase 1: Supabase Schema
 
-Status: in progress
+Status: complete
 
 Goal: create app-owned tables that can coexist with older projects in the same
 Supabase instance.
@@ -79,7 +85,7 @@ Acceptance:
 
 ## Phase 2: Auth Configuration
 
-Status: pending Phase 1
+Status: in progress
 
 Goal: make account login work before paid plans.
 
@@ -104,9 +110,16 @@ Acceptance:
 - App can retrieve a Supabase access token for API calls.
 - Settings or account panel shows signed-in email and current tenant.
 
+Current implementation checkpoint:
+
+- Supabase runtime config is wired into the macOS app.
+- Email OTP sign-in is the first provider implemented in the macOS settings.
+- Successful sign-in triggers `public.bs_initialize_current_user()`.
+- Google OAuth and Apple ID remain pending until callback URLs are finalized.
+
 ## Phase 3: AI Gateway MVP
 
-Status: pending Phase 2
+Status: in progress
 
 Goal: move provider keys out of the macOS app.
 
@@ -134,6 +147,13 @@ Acceptance:
 - Free users are limited to 50 successful review/transform operations per month.
 - Over-quota responses are structured and user-readable.
 - macOS app no longer requires OpenAI/Groq/Claude keys for normal usage.
+
+Current implementation checkpoint:
+
+- `web/` Next.js app exists and builds.
+- Product UI routes exist at `/`, `/auth`, and `/pricing`.
+- Web auth currently implements email OTP against Supabase.
+- Google OAuth, Apple ID, Stripe, and `/api/ai/review` are still pending.
 
 ## Phase 4: macOS API Client Cutover
 
@@ -218,14 +238,16 @@ Possible work:
 2. Completed: write `supabase/migrations/0001_bs_core_schema.sql`.
 3. Completed: write `docs/supabase-setup.md` with required project URL, anon key, service
    role key, redirect URLs, and provider configuration steps.
-4. Completed: add a small Supabase config layer in macOS using environment or local config
-   placeholders without committing secrets.
-5. Next: build the first `AuthClient` and a minimal account/settings UI for email OTP.
+4. Completed: add a small Supabase config layer in macOS using environment or local config.
+5. In progress: add the first macOS auth client and email OTP login flow.
+6. Completed: scaffold the Vercel-facing `web/` shell with product, auth, and pricing pages.
 
 Next task after those:
 
-- Scaffold `web/` with the `/api/ai/review` route shape, but keep provider
-   execution stubbed until auth is verified end-to-end.
+- Repoint auth and database work from the old shared Supabase project to the new
+  Bomb Squad-only Supabase project.
+- Then scaffold `web/` with the `/api/ai/review` route shape, but keep provider
+  execution stubbed until auth is verified end-to-end.
 
 ## Contract Notes
 

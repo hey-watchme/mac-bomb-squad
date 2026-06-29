@@ -170,6 +170,32 @@ order by tablename;
 
 ## Next Work After Setup
 
-- Add the first macOS auth client on top of the config layer.
-- Add the first auth client for email OTP.
+- Complete Google OAuth and Apple ID after callback URLs are fixed.
 - Scaffold the web AI gateway.
+
+## Current macOS Auth Checkpoint
+
+- The macOS app now expects `BOMB_SQUAD_SUPABASE_URL` and
+  `BOMB_SQUAD_SUPABASE_ANON_KEY`.
+- Settings includes the first Bomb Squad account section.
+- The implemented flow is email OTP:
+  1. Enter email address.
+  2. Request OTP.
+  3. Verify the code.
+  4. The app calls `public.bs_initialize_current_user()`.
+- Google and Apple are intentionally deferred until redirect/callback values are
+  finalized for macOS, web, iOS, and Android.
+
+## Current web Auth Checkpoint
+
+- The Vercel-facing UI now lives under `web/`.
+- The main routes are:
+  - `/`
+  - `/auth`
+  - `/pricing`
+- The web app expects:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `NEXT_PUBLIC_BOMB_SQUAD_API_BASE_URL`
+- A starter env file exists at `web/.env.example`.
+- The current web auth method is also email OTP.

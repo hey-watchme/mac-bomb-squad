@@ -17,3 +17,8 @@ BombSquad.xcodeproj/
 *.env
 .env
 secrets.*
+
+# Web app local files
+web/node_modules/
+web/.next/
+web/.env.local

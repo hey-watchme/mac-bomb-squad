@@ -1,4 +1,8 @@
 name: BombSquad
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    from: 2.48.0
 options:
   bundleIdPrefix: com.heywatchme
   deploymentTarget:
@@ -13,6 +17,9 @@ targets:
   BombSquad:
     type: application
     platform: macOS
+    dependencies:
+      - package: Supabase
+        product: Supabase
     sources:
       - BombSquad
     settings:
