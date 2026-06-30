@@ -63,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleResignActive() {
+        // Login can legitimately move focus to the browser or Mail. Keep the
+        // auth gate alive so the user has a visible return point after callback.
+        guard authClient.currentSession() != nil else { return }
+
         // The staging panel is a transient "capture" mode; touching another app's
         // input releases it. Closing on resign makes it behave modally.
         if panel != nil { closePanel() }
