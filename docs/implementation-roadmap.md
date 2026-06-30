@@ -7,7 +7,7 @@ updated whenever a phase starts, finishes, or changes direction.
 
 - Repository: `git@github.com:hey-watchme/mac-bomb-squad.git`
 - Branch: `main`
-- Last pushed commit: `13a015a Add Supabase config layer`
+- Last pushed commit: `72ea035 Keep auth panel open during login`
 - App target: `BombSquad`
 - Bundle ID: `com.heywatchme.bombsquad`
 - Generated project: `BombSquad.xcodeproj`
@@ -118,7 +118,28 @@ Current implementation checkpoint:
 - Successful sign-in triggers `public.bs_initialize_current_user()`.
 - Web production URL is fixed at `https://bombsquad.me`.
 - Google OAuth is implemented on the web surface and Supabase now has the Google client ID configured.
+- macOS auth callback bug fixed: the unauthenticated login panel stays visible while Google or email-link auth moves focus to the browser or Mail.
 - Apple ID remains pending.
+
+Next macOS UX task:
+
+- Keep Bomb Squad as a menu-bar/accessory app rather than converting it into an always-open main-window app.
+- Split UI responsibilities:
+  - transient input-support panel: opened by right Shift gesture, lightweight, closes when normal work moves elsewhere after login
+  - account/settings/history/billing window: opened on demand from the menu bar or from a small control in the transient panel
+- Do not auto-focus an always-open management window during ordinary input-support usage.
+- After Google or email-link auth callback, show a clear signed-in/account state only when it is part of the login flow.
+- Treat the Amical-style always-open management window as a reference for layout, not as a lifecycle model to copy.
+
+Native macOS windowing options to keep in mind:
+
+- Regular Dock app with a standard main window.
+- Menu-bar/accessory app with windows opened on demand.
+- Menu-bar popover for small status/account controls.
+- Transient floating `NSPanel` for capture/review.
+- Separate Settings/Account `NSWindow` for heavier management screens.
+
+Avoid custom focus-stealing or always-on-top behavior unless a specific product requirement justifies it.
 
 ## Phase 3: AI Gateway MVP
 
@@ -244,13 +265,12 @@ Possible work:
 3. Completed: write `docs/supabase-setup.md` with required project URL, anon key, service
    role key, redirect URLs, and provider configuration steps.
 4. Completed: add a small Supabase config layer in macOS using environment or local config.
-5. In progress: add the first macOS auth client and align it with the web auth contract.
+5. Completed: add the first macOS auth client and align it with the web auth contract.
 6. Completed: scaffold the Vercel-facing `web/` shell with product, auth, and pricing pages.
 
 Next task after those:
 
-- Repoint auth and database work from the old shared Supabase project to the new
-  Bomb Squad-only Supabase project.
+- Implement the on-demand macOS Account/Settings window model described above.
 - Then scaffold `web/` with the `/api/ai/review` route shape, but keep provider
   execution stubbed until auth is verified end-to-end.
 
