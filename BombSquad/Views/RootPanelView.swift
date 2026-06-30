@@ -1,16 +1,19 @@
 import SwiftUI
 
 struct RootPanelView: View {
-    @StateObject private var authViewModel = AuthViewModel()
+    // Shared app-wide auth state, not a per-panel instance — see AuthViewModel.shared.
+    @ObservedObject var authViewModel: AuthViewModel
     @ObservedObject var reviewViewModel: ReviewViewModel
     let config: BombSquadConfig.Snapshot
     @State private var didAutoReviewAfterLogin = false
 
     init(
         reviewViewModel: ReviewViewModel,
+        authViewModel: AuthViewModel = .shared,
         config: BombSquadConfig.Snapshot = BombSquadConfig.snapshot()
     ) {
         self.reviewViewModel = reviewViewModel
+        self.authViewModel = authViewModel
         self.config = config
     }
 

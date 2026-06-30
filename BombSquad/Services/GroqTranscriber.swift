@@ -28,13 +28,39 @@ struct GroqTranscriber {
             throw ProviderError.http(status: http.statusCode, body: String(body.prefix(500)))
         }
 
-        guard
-            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let text = root["text"] as? String
-        else {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ProviderError.decoding("transcription response was not JSON")
+        }
+
+        // verbose_json returns per-segment confidence. Drop segments that look
+        // like silence-driven hallucinations, then rebuild the text from what's
+        // left. Fall back to the top-level text if no segments are present.
+        if let segments = root["segments"] as? [[String: Any]] {
+            let kept = segments.filter { !Self.isHallucinated($0) }
+            let rebuilt = kept
+                .compactMap { $0["text"] as? String }
+                .joined()
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return rebuilt
+        }
+
+        guard let text = root["text"] as? String else {
             throw ProviderError.decoding("transcription response had no text")
         }
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whisper's own silence heuristic plus a repetition guard. A segment is
+    /// treated as a hallucination when the model is both confident there is no
+    /// speech and uncertain about its tokens, or when the output is degenerate
+    /// (highly repetitive text compresses far more than natural language).
+    private static func isHallucinated(_ segment: [String: Any]) -> Bool {
+        let noSpeechProb = (segment["no_speech_prob"] as? Double) ?? 0
+        let avgLogprob = (segment["avg_logprob"] as? Double) ?? 0
+        let compressionRatio = (segment["compression_ratio"] as? Double) ?? 0
+        if noSpeechProb > 0.6 && avgLogprob < -1.0 { return true }
+        if compressionRatio > 2.4 { return true }
+        return false
     }
 
     private func multipartBody(boundary: String, audioData: Data) -> Data {
@@ -46,7 +72,8 @@ struct GroqTranscriber {
         }
         field("model", model)
         field("temperature", "0")
-        field("response_format", "json")
+        // verbose_json gives per-segment confidence used to filter hallucinations.
+        field("response_format", "verbose_json")
 
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)

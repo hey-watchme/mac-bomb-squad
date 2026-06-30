@@ -84,6 +84,7 @@ macOS の画面構成方針:
 - **音声入力（ASR）**: [`AudioRecorder`](BombSquad/Services/AudioRecorder.swift)（AVAudioRecorder, 16kHz mono m4a）＋ [`GroqTranscriber`](BombSquad/Services/GroqTranscriber.swift)（Groq `whisper-large-v3`, multipart）。⌘長押しで録音→離すと文字起こしして draft に挿入。
 - **ジェスチャ**: [`ShiftGestureMonitor`](BombSquad/Services/ShiftGestureMonitor.swift) が右Shift の 2回タップ（=次へ）と長押し（=音声）を判定（⌘ はショートカットと衝突するため右Shift に統一）。⌘J は Carbon `RegisterEventHotKey`。
 - **注入**: [`PasteDeployer`](BombSquad/Services/PasteDeployer.swift) がクリップボード＋⌘V 合成で元フィールドへ。`Deployer` で抽象化（将来 Accessibility 注入に差し替え可）。
+- **クリップボード退避・復元（暫定）**: 送信の ⌘V（[`PasteDeployer`](BombSquad/Services/PasteDeployer.swift)）と受信取り込みの ⌘C（[`SelectionGrabber`](BombSquad/Services/SelectionGrabber.swift)）はシステムのクリップボードを一時的に借りる。ユーザーが元々コピーしていた内容を壊さないよう、操作の直前に全アイテム・全タイプを退避し、合成ペースト／コピーが処理された後に復元する（[`ClipboardBackup`](BombSquad/Services/Deployer.swift)）。これは TextExpander・Alfred・Raycast・Espanso 等の入力支援ツールで確立した定番パターン。ただし退避・復元も合成ペースト／コピーも遅延ベースのため原理的に 100% 完全ではない（重いアプリでの取りこぼし、一部アプリ独自形式、他のクリップボード管理ツールとの併用など）。**本筋はロードマップの「Accessibility API で実フォームへ直接注入」**で、それが入ればクリップボードを一切触らなくなりこの仕組みは不要になる。なお受信モードの出口（[`ClipboardDeployer`](BombSquad/Services/Deployer.swift)）は「クリップボードへコピー」自体が機能のため復元しない。
 - 効果音: マイク ON/OFF の cue は AudioServices システムサウンド（`Tink`/`Pop`）。※終了音には既知のエコー問題あり（後述）。
 - API キーは vendor 別に Keychain に保存（リポジトリには含めない）。署名は Apple Development 証明書で固定（Keychain の「常に許可」がリビルド後も持続）。
 - プロジェクトは [XcodeGen](https://github.com/yonaskolb/XcodeGen) で生成。マイク権限は `INFOPLIST_KEY_NSMicrophoneUsageDescription`。

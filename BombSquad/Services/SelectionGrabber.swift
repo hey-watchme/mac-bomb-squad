@@ -19,14 +19,20 @@ enum SelectionGrabber {
             return
         }
         let pasteboard = NSPasteboard.general
+        // Preserve whatever the user had on the clipboard; our ⌘C would clobber it.
+        let backup = ClipboardBackup.snapshot()
         let before = pasteboard.changeCount
         sendCommandC()
         // The copy lands asynchronously after the target app handles ⌘C; give it
         // a beat (same order as PasteDeployer's paste delay) before reading.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            let changed = pasteboard.changeCount != before
+            let grabbed = changed ? pasteboard.string(forType: .string) : nil
+            // Restore the user's clipboard now that we've read the selection.
+            // (If ⌘C changed nothing, the snapshot equals the current contents.)
+            if changed { ClipboardBackup.restore(backup) }
             guard
-                pasteboard.changeCount != before,
-                let text = pasteboard.string(forType: .string),
+                let text = grabbed,
                 !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else {
                 completion(nil)

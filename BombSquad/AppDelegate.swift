@@ -25,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu-bar accessory: no Dock icon, no window until summoned.
         NSApp.setActivationPolicy(.accessory)
+        // Start the shared auth session subscription now (not on first summon),
+        // so the panel never flashes the login screen while it loads.
+        _ = AuthViewModel.shared
         // Guide the user to grant Accessibility once; needed for paste injection.
         AccessibilityPermission.prompt()
         // Pre-register sound cues so the first one is instant.
@@ -142,6 +145,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         Task {
             defer { try? FileManager.default.removeItem(at: url) }
+            // Silence gate: drop near-silent or ultra-short clips before the API,
+            // since Whisper hallucinates filler on silence. Thresholds are tunable;
+            // if the file can't be inspected we fail open and transcribe anyway.
+            if let clip = AudioRecorder.inspect(url: url),
+               clip.duration < 0.4 || clip.averagePower < -45 {
+                await MainActor.run { vm?.isTranscribing = false }
+                return
+            }
             do {
                 let text = try await transcriber.transcribe(fileURL: url)
                 await MainActor.run {

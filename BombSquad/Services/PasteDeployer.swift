@@ -18,6 +18,8 @@ final class PasteDeployer: Deployer {
 
     func deploy(_ text: String) throws {
         let pasteboard = NSPasteboard.general
+        // Preserve the user's clipboard; we only borrow it to synthesize ⌘V.
+        let backup = ClipboardBackup.snapshot()
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
@@ -26,7 +28,9 @@ final class PasteDeployer: Deployer {
 
         guard AXIsProcessTrusted() else {
             AccessibilityPermission.prompt()
-            return // text stays on the clipboard as a manual-paste fallback
+            // No paste will happen; leave our text on the clipboard as a manual-
+            // paste fallback (restoring here would defeat that fallback).
+            return
         }
 
         // The panel is already dismissed and we have no other windows (accessory
@@ -37,6 +41,11 @@ final class PasteDeployer: Deployer {
             target?.activate()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 PasteDeployer.sendCommandV()
+                // Restore the user's clipboard only after the paste is handled.
+                // Earlier would risk pasting the restored (wrong) contents.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    ClipboardBackup.restore(backup)
+                }
             }
         }
     }

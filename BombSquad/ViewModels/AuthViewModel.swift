@@ -3,6 +3,12 @@ import Supabase
 
 @MainActor
 final class AuthViewModel: ObservableObject {
+    /// App-wide auth state. The panel is summoned and dismissed constantly, but
+    /// the session lives for the app's lifetime, so it must not be re-created per
+    /// panel — doing so flashes the login screen (~0.5s) while the async initial
+    /// session loads, and re-runs bootstrap/account fetches on every summon.
+    static let shared = AuthViewModel()
+
     @Published var email: String = ""
     @Published var signedInEmail: String?
     @Published var authMethodLabel: String?
@@ -19,6 +25,9 @@ final class AuthViewModel: ObservableObject {
 
     init(authClient: BombSquadAuthClient = .shared) {
         self.authClient = authClient
+        // Seed from the synchronously-available cached session so the very first
+        // render already knows whether we're logged in (no login-screen flash).
+        self.hasSession = authClient.currentSession() != nil
         start()
     }
 
