@@ -1,15 +1,16 @@
 import SwiftUI
 
-/// Settings: pick the review model and store each vendor's API key in the Keychain.
-struct SettingsView: View {
+/// App configuration: review model selection, per-vendor API keys, and the
+/// read-only backend/auth config snapshot. Account sign-in lives in `AccountView`;
+/// this section is purely technical settings.
+struct GeneralSettingsView: View {
     @AppStorage(AppSettings.selectedModelKey) private var selectedModelID = ReviewModel.defaultModel.id
 
-    @StateObject private var authViewModel = AuthViewModel()
+    let config: BombSquadConfig.Snapshot
     @State private var openAIKey: String = ""
     @State private var anthropicKey: String = ""
     @State private var groqKey: String = ""
     @State private var saved = false
-    @State private var config = BombSquadConfig.snapshot()
 
     private var selectedModel: ReviewModel {
         ReviewModel.find(id: selectedModelID)
@@ -43,9 +44,7 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            AuthView(viewModel: authViewModel, config: config)
-
-            Section("Backend / Auth 準備") {
+            Section("Backend / Auth") {
                 configRow("Product API", entry: config.apiBaseURL)
                 configRow("Supabase URL", entry: config.supabaseURL)
                 configRow("Supabase anon key", entry: config.supabaseAnonKey)
@@ -70,7 +69,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 620)
+        .navigationTitle("設定")
         .onAppear(perform: load)
         .onChange(of: openAIKey) { _, _ in saved = false }
         .onChange(of: anthropicKey) { _, _ in saved = false }
@@ -78,7 +77,6 @@ struct SettingsView: View {
     }
 
     private func load() {
-        config = BombSquadConfig.snapshot()
         groqKey = KeychainStore.apiKey(account: APIVendor.groq.keychainAccount) ?? ""
         openAIKey = KeychainStore.apiKey(account: APIVendor.openAI.keychainAccount) ?? ""
         anthropicKey = KeychainStore.apiKey(account: APIVendor.anthropic.keychainAccount) ?? ""

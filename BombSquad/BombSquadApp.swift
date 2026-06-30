@@ -3,24 +3,53 @@ import SwiftUI
 
 /// Bomb Squad — a staging layer between you and the message you send.
 /// Runs as a menu-bar (accessory) app: no window at launch, no Dock icon.
-/// The staging/review window only exists when summoned by the ⌘J hotkey, which
-/// avoids a stray launch window stealing focus from the paste target.
+///
+/// Two surfaces only:
+/// - the lightweight capture/review panel, summoned by the right-Shift gesture
+///   (or ⌘J), which stays focused on drafting and reviewing.
+/// - a single on-demand management window (account, settings, history, pricing),
+///   opened from this menu bar. It is never always-on and never steals focus
+///   during ordinary input-support usage.
 @main
 struct BombSquadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @ObservedObject private var auth = AuthViewModel.shared
 
     var body: some Scene {
         MenuBarExtra("Bomb Squad", systemImage: "text.bubble") {
-            Button("入力ウィンドウを開く（⌘J）") {
+            // At-a-glance running/account state.
+            if auth.hasSession {
+                Text(auth.signedInEmail ?? "ログイン済み")
+                if let tier = auth.accountSummary?.tier.label {
+                    Text("プラン: \(tier)")
+                }
+            } else {
+                Text("未ログイン")
+            }
+            Divider()
+
+            Button("入力パネルを開く（⌘J）") {
                 NotificationCenter.default.post(name: .showPanel, object: nil)
             }
             Divider()
-            SettingsLink { Text("設定…") }
+
+            Button(auth.hasSession ? "アカウント / マイページ…" : "ログイン / 新規登録…") {
+                openManagement(.account)
+            }
+            Button("設定…") { openManagement(.settings) }
+                .keyboardShortcut(",", modifiers: .command)
+            Button("履歴…") { openManagement(.history) }
+            Button("料金プラン…") { openManagement(.pricing) }
+            Divider()
+
             Button("終了") { NSApplication.shared.terminate(nil) }
         }
+    }
 
-        Settings {
-            SettingsView()
-        }
+    /// Point the (single) management window at a section, then ask the app
+    /// delegate to bring it to front.
+    private func openManagement(_ section: ManagementSection) {
+        ManagementNavigator.shared.section = section
+        NotificationCenter.default.post(name: .showManagement, object: nil)
     }
 }

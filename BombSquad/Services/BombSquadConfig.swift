@@ -107,6 +107,12 @@ enum BombSquadConfig {
             }
         }
 
+        // Bundled copy (see project.yml): the only location that does not depend
+        // on the launch working directory, so it is the primary reliable source.
+        if let bundledURL = bundle.url(forResource: "BombSquad.local", withExtension: "plist") {
+            urls.append(bundledURL)
+        }
+
         let workingDirectoryURL = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
         urls.append(workingDirectoryURL.appendingPathComponent(localConfigFileName))
 

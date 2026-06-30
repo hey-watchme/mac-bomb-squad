@@ -7,6 +7,10 @@ extension Notification.Name {
     static let showPanel = Notification.Name("BombSquad.showPanel")
     /// Posted from the panel (Esc) to cancel/close it.
     static let closePanel = Notification.Name("BombSquad.closePanel")
+    /// Posted by the menu bar (or the panel's login CTA) to open the on-demand
+    /// management window. The target section is set on `ManagementNavigator.shared`
+    /// before posting.
+    static let showManagement = Notification.Name("BombSquad.showManagement")
 }
 
 /// Owns the global hotkey and the floating review panel summoned by ⌘J.
@@ -14,6 +18,9 @@ extension Notification.Name {
 /// panel hosting the staging/review UI wired to a `PasteDeployer`.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
+    /// The single on-demand management window (account/settings/history/pricing).
+    /// Created lazily and reused; never always-on.
+    private var managementWindow: NSWindow?
     private var currentViewModel: ReviewViewModel?
     private let authClient = BombSquadAuthClient.shared
     private let gesture = ShiftGestureMonitor()
@@ -50,6 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleClosePanel), name: .closePanel, object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleShowManagement), name: .showManagement, object: nil
         )
         // Modal-like: if focus leaves to another app/form, exit the mode (close).
         NotificationCenter.default.addObserver(
@@ -170,6 +180,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleShowPanel() {
         togglePanel()
+    }
+
+    /// Open (or bring to front) the single management window. The desired section
+    /// has already been set on `ManagementNavigator.shared` by the caller.
+    ///
+    /// The capture panel is an always-on-top floating panel, so any normal window
+    /// would open behind it. The panel is transient anyway, so we close it and let
+    /// the management window take over (e.g. login → the account/login screen).
+    @objc private func handleShowManagement() {
+        if panel != nil { closePanel() }
+
+        if let managementWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            managementWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered, defer: false
+        )
+        window.title = "Bomb Squad"
+        window.isReleasedWhenClosed = false
+        window.titlebarAppearsTransparent = false
+        window.contentViewController = NSHostingController(rootView: ManagementView())
+        window.setContentSize(NSSize(width: 820, height: 600))
+        window.center()
+
+        managementWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     @objc private func handleClosePanel() {

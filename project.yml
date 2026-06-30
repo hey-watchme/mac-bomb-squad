@@ -34,6 +34,13 @@ targets:
         product: Supabase
     sources:
       - BombSquad
+      # Bundle the gitignored local auth config so the app reads it regardless of
+      # the launch working directory (Finder/Spotlight/Xcode all give CWD "/").
+      # The Supabase anon key is a public client key, so bundling is safe.
+      # optional: build still works for developers without the file.
+      - path: BombSquad.local.plist
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.heywatchme.bombsquad

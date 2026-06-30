@@ -121,15 +121,35 @@ Current implementation checkpoint:
 - macOS auth callback bug fixed: the unauthenticated login panel stays visible while Google or email-link auth moves focus to the browser or Mail.
 - Apple ID remains pending.
 
-Next macOS UX task:
+Next macOS UX task: DONE
 
-- Keep Bomb Squad as a menu-bar/accessory app rather than converting it into an always-open main-window app.
-- Split UI responsibilities:
-  - transient input-support panel: opened by right Shift gesture, lightweight, closes when normal work moves elsewhere after login
-  - account/settings/history/billing window: opened on demand from the menu bar or from a small control in the transient panel
-- Do not auto-focus an always-open management window during ordinary input-support usage.
-- After Google or email-link auth callback, show a clear signed-in/account state only when it is part of the login flow.
-- Treat the Amical-style always-open management window as a reference for layout, not as a lifecycle model to copy.
+The on-demand management window model is implemented:
+
+- The app stays a menu-bar/accessory app. The menu bar is the hub: it shows
+  signed-in email/plan at a glance and opens each section on demand.
+- Two surfaces only:
+  - transient input-support panel (right Shift gesture / ⌘J): now stripped of
+    management navigation (the settings gear was removed; the not-signed-in state
+    is just a "ログイン / 新規登録" CTA that opens the management window).
+  - a single on-demand management window: a modern `NavigationSplitView` sidebar
+    (`ManagementView`) with Account, Settings, History, Pricing sections. Managed
+    as one reused `NSWindow` in `AppDelegate`; never always-on, never auto-focused
+    during ordinary input-support usage.
+- Sign in / sign up / sign out all live in the Account section (`AccountView`).
+- Settings (model/API keys/backend) moved to `GeneralSettingsView`; the old
+  combined `SettingsView`/`AuthView` and the SwiftUI `Settings` scene were removed.
+- History is a placeholder (no persistence layer yet). Pricing opens the web page.
+- The Amical layout was used as a layout reference only; lifecycle is on-demand.
+
+Implementation files:
+
+- `BombSquad/Views/Management/ManagementView.swift` (+ `ManagementNavigator`, `ManagementSection`)
+- `BombSquad/Views/Management/AccountView.swift`
+- `BombSquad/Views/Management/GeneralSettingsView.swift`
+- `BombSquad/Views/Management/HistoryPlaceholderView.swift`
+- `BombSquad/Views/Management/PricingView.swift`
+- `BombSquad/BombSquadApp.swift`, `BombSquad/AppDelegate.swift`
+- `BombSquad/Views/StagingEditorView.swift`, `BombSquad/Views/LoginRequiredView.swift`
 
 Native macOS windowing options to keep in mind:
 

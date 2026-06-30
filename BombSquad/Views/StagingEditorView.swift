@@ -44,13 +44,6 @@ struct StagingEditorView: View {
                 .background(EditorFocusBackground(isFocused: isFocused))
 
             HStack(spacing: 8) {
-                SettingsLink {
-                    Label("設定", systemImage: "gearshape")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("APIキーとモデルを設定します")
-
                 Button {
                     showHelp.toggle()
                 } label: {

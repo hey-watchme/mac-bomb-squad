@@ -1,31 +1,35 @@
 import SwiftUI
 
+/// Shown inside the capture panel when there is no session. The panel stays
+/// lightweight: login/signup itself lives in the management window's account
+/// section, so this is just a call-to-action that opens it.
 struct LoginRequiredView: View {
     @ObservedObject var viewModel: AuthViewModel
     let config: BombSquadConfig.Snapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Bomb Squad を使うにはログインが必要です")
+        VStack(spacing: 16) {
+            Image(systemName: "lock.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(.tertiary)
+            VStack(spacing: 6) {
+                Text("ログインが必要です")
                     .font(.title2.weight(.semibold))
-                Text("最初の利用はフリーアカウントから始まります。Google またはメールリンクでログインしてください。")
+                Text("初回利用はフリーアカウントから始まります。")
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            Form {
-                AuthView(viewModel: viewModel, config: config)
+            Button {
+                ManagementNavigator.shared.section = .account
+                NotificationCenter.default.post(name: .showManagement, object: nil)
+            } label: {
+                Label("ログイン / 新規登録", systemImage: "person.crop.circle")
             }
-            .formStyle(.grouped)
-
-            if viewModel.hasSession {
-                Text("ログインが完了しました。このまま入力ウィンドウを利用できます。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
         }
-        .padding(24)
-        .frame(minWidth: 520, minHeight: 420)
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
