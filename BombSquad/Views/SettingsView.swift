@@ -50,7 +50,7 @@ struct SettingsView: View {
                 configRow("Supabase URL", entry: config.supabaseURL)
                 configRow("Supabase anon key", entry: config.supabaseAnonKey)
 
-                Text("値の読み取り順は `ProcessInfo.environment` → `Info.plist` です。まずは Xcode Scheme の環境変数で設定する想定です。")
+                Text("値の読み取り順は `BombSquad.local.plist` → `ProcessInfo.environment` → `Info.plist` です。通常はリポジトリ直下の `BombSquad.local.plist` を使います。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

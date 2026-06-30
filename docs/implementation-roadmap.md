@@ -13,6 +13,7 @@ updated whenever a phase starts, finishes, or changes direction.
 - Generated project: `BombSquad.xcodeproj`
 - Supabase core schema SQL has been applied in the shared project.
 - New web shell: `web/`
+- Planned production web URL: `https://bombsquad.me`
 - Next session note:
   - this repo directory may be renamed from `just-a-moment` to `bomb-squad`
   - re-check cwd and local file links after reopening a new session
@@ -93,7 +94,7 @@ Providers:
 
 - Google OAuth
 - Apple ID
-- Email OTP
+- Email link
 
 Implementation files:
 
@@ -113,9 +114,11 @@ Acceptance:
 Current implementation checkpoint:
 
 - Supabase runtime config is wired into the macOS app.
-- Email OTP sign-in is the first provider implemented in the macOS settings.
+- Google OAuth and email-link sign-in are implemented in the macOS app.
 - Successful sign-in triggers `public.bs_initialize_current_user()`.
-- Google OAuth and Apple ID remain pending until callback URLs are finalized.
+- Web production URL is fixed at `https://bombsquad.me`.
+- Google OAuth is implemented on the web surface and Supabase now has the Google client ID configured.
+- Apple ID remains pending.
 
 ## Phase 3: AI Gateway MVP
 
@@ -152,8 +155,10 @@ Current implementation checkpoint:
 
 - `web/` Next.js app exists and builds.
 - Product UI routes exist at `/`, `/auth`, and `/pricing`.
-- Web auth currently implements email OTP against Supabase.
-- Google OAuth, Apple ID, Stripe, and `/api/ai/review` are still pending.
+- Web auth currently implements email link and Google OAuth against Supabase.
+- Web auth callbacks are designed for both `https://bombsquad.me/auth/callback` and `http://localhost:3000/auth/callback`.
+- Apple ID remains a follow-up task.
+- Stripe and `/api/ai/review` are still pending.
 
 ## Phase 4: macOS API Client Cutover
 
@@ -239,7 +244,7 @@ Possible work:
 3. Completed: write `docs/supabase-setup.md` with required project URL, anon key, service
    role key, redirect URLs, and provider configuration steps.
 4. Completed: add a small Supabase config layer in macOS using environment or local config.
-5. In progress: add the first macOS auth client and email OTP login flow.
+5. In progress: add the first macOS auth client and align it with the web auth contract.
 6. Completed: scaffold the Vercel-facing `web/` shell with product, auth, and pricing pages.
 
 Next task after those:

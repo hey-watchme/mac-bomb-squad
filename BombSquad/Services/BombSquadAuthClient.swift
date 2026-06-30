@@ -5,7 +5,6 @@ enum BombSquadAuthError: LocalizedError {
     case missingConfiguration
     case invalidSupabaseURL(String)
     case invalidEmail
-    case invalidVerificationCode
 
     var errorDescription: String? {
         switch self {
@@ -15,14 +14,13 @@ enum BombSquadAuthError: LocalizedError {
             return "Supabase URL が不正です: \(value)"
         case .invalidEmail:
             return "メールアドレスを入力してください。"
-        case .invalidVerificationCode:
-            return "認証コードを入力してください。"
         }
     }
 }
 
 final class BombSquadAuthClient {
     static let shared = BombSquadAuthClient()
+    static let redirectURL = URL(string: "bombsquad://auth/callback")!
 
     typealias AuthStateChange = (event: AuthChangeEvent, session: Session?)
 
@@ -81,7 +79,7 @@ final class BombSquadAuthClient {
         client?.auth.currentUser?.email
     }
 
-    func sendEmailOTP(email: String) async throws {
+    func sendMagicLink(email: String) async throws {
         guard let client else {
             throw missingConfigurationError()
         }
@@ -91,36 +89,34 @@ final class BombSquadAuthClient {
             throw BombSquadAuthError.invalidEmail
         }
 
-        try await client.auth.signInWithOTP(email: normalizedEmail)
+        // Supabase の API 名は signInWithOTP だが、現在の Bomb Squad では
+        // メールテンプレートを ConfirmationURL ベースにしているため、
+        // 実際のユーザー体験は「コード入力」ではなく「メールリンクを開く」方式。
+        try await client.auth.signInWithOTP(
+            email: normalizedEmail,
+            redirectTo: Self.redirectURL
+        )
     }
 
     @discardableResult
-    func verifyEmailOTP(email: String, token: String) async throws -> Session {
+    func signInWithGoogle() async throws -> Session {
         guard let client else {
             throw missingConfigurationError()
         }
 
-        let normalizedEmail = normalize(email)
-        guard isValidEmail(normalizedEmail) else {
-            throw BombSquadAuthError.invalidEmail
-        }
-
-        let normalizedToken = normalize(token)
-        guard !normalizedToken.isEmpty else {
-            throw BombSquadAuthError.invalidVerificationCode
-        }
-
-        let response = try await client.auth.verifyOTP(
-            email: normalizedEmail,
-            token: normalizedToken,
-            type: .email
+        return try await client.auth.signInWithOAuth(
+            provider: .google,
+            redirectTo: Self.redirectURL
         )
+    }
 
-        guard let session = response.session else {
-            throw BombSquadAuthError.invalidVerificationCode
+    @discardableResult
+    func handleIncomingURL(_ url: URL) async throws -> Session {
+        guard let client else {
+            throw missingConfigurationError()
         }
 
-        return session
+        return try await client.auth.session(from: url)
     }
 
     @discardableResult
@@ -131,6 +127,40 @@ final class BombSquadAuthClient {
 
         let tenantID: UUID = try await client.rpc("bs_initialize_current_user").execute().value
         return tenantID
+    }
+
+    func fetchAccountSummary() async throws -> BombSquadAccountSummary {
+        guard let client else {
+            throw missingConfigurationError()
+        }
+
+        guard let session = currentSession() else {
+            throw BombSquadAuthError.missingConfiguration
+        }
+
+        let profile: ProfileRow = try await client
+            .from("bs_profiles")
+            .select("email, default_tenant_id")
+            .eq("id", value: session.user.id)
+            .single()
+            .execute()
+            .value
+
+        let entitlement: EntitlementRow = try await client
+            .from("bs_entitlements")
+            .select("plan, status, monthly_review_limit")
+            .eq("tenant_id", value: profile.defaultTenantID)
+            .single()
+            .execute()
+            .value
+
+        return BombSquadAccountSummary(
+            email: profile.email ?? session.user.email ?? "",
+            tenantID: profile.defaultTenantID,
+            tier: .fromEntitlementPlan(entitlement.plan),
+            state: .fromRawValue(entitlement.status),
+            monthlyReviewLimit: entitlement.monthlyReviewLimit
+        )
     }
 
     func accessToken() async throws -> String {
@@ -162,5 +192,27 @@ final class BombSquadAuthClient {
     private func isValidEmail(_ value: String) -> Bool {
         guard !value.isEmpty else { return false }
         return value.contains("@") && value.contains(".")
+    }
+}
+
+private struct ProfileRow: Decodable {
+    let email: String?
+    let defaultTenantID: UUID
+
+    private enum CodingKeys: String, CodingKey {
+        case email
+        case defaultTenantID = "default_tenant_id"
+    }
+}
+
+private struct EntitlementRow: Decodable {
+    let plan: String
+    let status: String
+    let monthlyReviewLimit: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case plan
+        case status
+        case monthlyReviewLimit = "monthly_review_limit"
     }
 }

@@ -4,9 +4,10 @@ import Supabase
 @MainActor
 final class AuthViewModel: ObservableObject {
     @Published var email: String = ""
-    @Published var verificationCode: String = ""
     @Published var signedInEmail: String?
+    @Published var authMethodLabel: String?
     @Published var tenantID: UUID?
+    @Published var accountSummary: BombSquadAccountSummary?
     @Published var isBusy = false
     @Published var hasSession = false
     @Published var statusMessage: String?
@@ -29,18 +30,15 @@ final class AuthViewModel: ObservableObject {
         authClient.isConfigured
     }
 
-    var canSendCode: Bool {
+    var canSendMagicLink: Bool {
         isConfigured && !isBusy && !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    var canVerifyCode: Bool {
-        isConfigured
-            && !isBusy
-            && !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !verificationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    var canSignInWithGoogle: Bool {
+        isConfigured && !isBusy
     }
 
-    func sendCode() {
+    func sendMagicLink() {
         guard !isBusy else { return }
         isBusy = true
         errorMessage = nil
@@ -48,10 +46,10 @@ final class AuthViewModel: ObservableObject {
 
         Task {
             do {
-                try await authClient.sendEmailOTP(email: email)
+                try await authClient.sendMagicLink(email: email)
                 await MainActor.run {
                     self.email = self.email.trimmingCharacters(in: .whitespacesAndNewlines)
-                    self.statusMessage = "認証コードを送信しました。メール内のコードを入力してください。"
+                    self.statusMessage = "ログイン用メールを送信しました。この Mac でメール内のリンクを開いてください。"
                     self.isBusy = false
                 }
             } catch {
@@ -63,7 +61,7 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func verifyCode() {
+    func signInWithGoogle() {
         guard !isBusy else { return }
         isBusy = true
         errorMessage = nil
@@ -71,14 +69,10 @@ final class AuthViewModel: ObservableObject {
 
         Task {
             do {
-                let session = try await authClient.verifyEmailOTP(
-                    email: email,
-                    token: verificationCode
-                )
+                let session = try await authClient.signInWithGoogle()
                 try await refreshState(session: session, shouldBootstrap: true)
                 await MainActor.run {
-                    self.verificationCode = ""
-                    self.statusMessage = "ログインしました。"
+                    self.statusMessage = "Google でログインしました。"
                     self.isBusy = false
                 }
             } catch {
@@ -102,6 +96,7 @@ final class AuthViewModel: ObservableObject {
                 await MainActor.run {
                     self.initializedUserID = nil
                     self.tenantID = nil
+                    self.accountSummary = nil
                     self.signedInEmail = nil
                     self.hasSession = false
                     self.statusMessage = "ログアウトしました。"
@@ -133,13 +128,15 @@ final class AuthViewModel: ObservableObject {
                 try await refreshState(session: change.session, shouldBootstrap: change.session != nil)
             case .signedIn:
                 try await refreshState(session: change.session, shouldBootstrap: true)
-                statusMessage = "ログインしました。"
+                statusMessage = authMethodLabel.map { "\($0)でログインしました。" } ?? "ログインしました。"
             case .tokenRefreshed, .userUpdated, .mfaChallengeVerified, .passwordRecovery:
                 try await refreshState(session: change.session, shouldBootstrap: false)
             case .signedOut, .userDeleted:
                 initializedUserID = nil
                 tenantID = nil
+                accountSummary = nil
                 signedInEmail = nil
+                authMethodLabel = nil
                 hasSession = false
             }
         } catch {
@@ -152,12 +149,14 @@ final class AuthViewModel: ObservableObject {
             initializedUserID = nil
             tenantID = nil
             signedInEmail = nil
+            authMethodLabel = nil
             hasSession = false
             return
         }
 
         hasSession = true
         signedInEmail = session.user.email ?? authClient.currentUserEmail()
+        authMethodLabel = authMethodLabel(for: session)
         if email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            let signedInEmail {
             email = signedInEmail
@@ -167,11 +166,42 @@ final class AuthViewModel: ObservableObject {
             tenantID = try await authClient.bootstrapCurrentUser()
             initializedUserID = session.user.id
         }
+
+        accountSummary = try await authClient.fetchAccountSummary()
     }
 
     private func present(_ error: Error) async {
         await MainActor.run {
             self.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func authMethodLabel(for session: Session) -> String? {
+        if let provider = session.user.appMetadata["provider"]?.stringValue {
+            return providerLabel(for: provider)
+        }
+
+        if let provider = session.user.identities?.first?.provider {
+            return providerLabel(for: provider)
+        }
+
+        if session.user.email != nil {
+            return "メール"
+        }
+
+        return nil
+    }
+
+    private func providerLabel(for provider: String) -> String {
+        switch provider.lowercased() {
+        case "google":
+            return "Google"
+        case "apple":
+            return "Apple"
+        case "email":
+            return "メール"
+        default:
+            return provider
         }
     }
 }

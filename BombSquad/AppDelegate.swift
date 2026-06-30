@@ -15,6 +15,7 @@ extension Notification.Name {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var currentViewModel: ReviewViewModel?
+    private let authClient = BombSquadAuthClient.shared
     private let gesture = ShiftGestureMonitor()
     private let recorder = AudioRecorder()
     private let transcriber = GroqTranscriber()
@@ -52,6 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self, selector: #selector(handleResignActive),
             name: NSApplication.didResignActiveNotification, object: nil
         )
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first else { return }
+        Task {
+            try? await authClient.handleIncomingURL(url)
+        }
     }
 
     @objc private func handleResignActive() {
@@ -181,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // Receiving side: the selection is already captured, so run the
                 // transform immediately — the panel opens with the readable
                 // result already showing on the right (one stop, no second tap).
-                if mode == .transform {
+                if mode == .transform, authClient.currentSession() != nil {
                     Task { await viewModel.runReview() }
                 }
             }
@@ -198,7 +206,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentViewController = NSHostingController(rootView: ContentView(viewModel: viewModel))
+        panel.contentViewController = NSHostingController(
+            rootView: RootPanelView(reviewViewModel: viewModel)
+        )
         // Enforce a fixed size so SwiftUI can't resize the window out from under
         // the centering math; then center exactly.
         panel.setContentSize(NSSize(width: 920, height: 620))

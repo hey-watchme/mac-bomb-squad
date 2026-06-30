@@ -112,7 +112,49 @@ open BombSquad.xcodeproj
 xcodebuild -project BombSquad.xcodeproj -scheme BombSquad -configuration Debug build
 ```
 
+ローカル認証設定は、リポジトリ直下の `BombSquad.local.plist` から読み込む。
+読み取り順は `BombSquad.local.plist` → Xcode Scheme の環境変数 →
+`Info.plist`。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>BOMB_SQUAD_SUPABASE_URL</key>
+  <string>https://skcsbcyivjcvevxntvqa.supabase.co</string>
+  <key>BOMB_SQUAD_SUPABASE_ANON_KEY</key>
+  <string>YOUR_SUPABASE_ANON_KEY</string>
+  <key>BOMB_SQUAD_API_BASE_URL</key>
+  <string></string>
+</dict>
+</plist>
+```
+
 初回起動後、設定（Cmd+,）で Claude API キーを登録する。
+
+認証方式:
+- Google 認証
+- メールリンク認証
+
+メール認証はコード入力ではなく、メール本文のリンクをこの Mac で開く方式。
+
+### 現在の認証仕様
+
+Bomb Squad のログイン方法は、現時点では次の 2 つだけ。
+
+- Google OAuth
+- メールリンク認証
+
+ここでいう「メールリンク認証」は、メールアドレス宛てに届くリンクを開いて
+ログインを完了する方式。アプリ内で認証コードを入力する方式ではない。
+
+Supabase SDK ではメールリンク送信にも `signInWithOTP(...)` という API 名を使うが、
+これは SDK 名称の都合であって、Bomb Squad のユーザー体験が OTP 入力であることを
+意味しない。実際の挙動は、Supabase 側のメールテンプレートで
+`{{ .ConfirmationURL }}` を使っているか `{{ .Token }}` を使っているかで決まる。
+
+Bomb Squad では Web も macOS も `{{ .ConfirmationURL }}` 前提で揃える。
 
 ## Known issues（凍結中の残タスク）
 

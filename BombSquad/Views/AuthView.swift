@@ -9,10 +9,18 @@ struct AuthView: View {
             if config.hasSupabaseConfig {
                 if viewModel.hasSession {
                     LabeledContent("ログイン状態", value: "ログイン済み")
-                    if let email = viewModel.signedInEmail {
+                    if let email = viewModel.accountSummary?.email ?? viewModel.signedInEmail {
                         LabeledContent("メール", value: email)
                     }
-                    if let tenantID = viewModel.tenantID {
+                    if let authMethodLabel = viewModel.authMethodLabel {
+                        LabeledContent("ログイン方法", value: authMethodLabel)
+                    }
+                    if let summary = viewModel.accountSummary {
+                        LabeledContent("アカウント種別", value: summary.tier.label)
+                        LabeledContent("契約状態", value: summary.state.label)
+                        LabeledContent("月間レビュー枠", value: "\(summary.monthlyReviewLimit) 回")
+                    }
+                    if let tenantID = viewModel.accountSummary?.tenantID ?? viewModel.tenantID {
                         LabeledContent("テナント", value: redact(tenantID.uuidString))
                     }
                     Button("ログアウト", action: viewModel.signOut)
@@ -20,30 +28,27 @@ struct AuthView: View {
                         .disabled(viewModel.isBusy)
                 } else {
                     LabeledContent("ログイン状態", value: "未ログイン")
-                }
+                    Text("Bomb Squad を使うにはログインが必要です。初回登録はフリーアカウントから始まります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                TextField("メールアドレス", text: $viewModel.email)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(viewModel.isBusy)
+                    Button("Google で続ける", action: viewModel.signInWithGoogle)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!viewModel.canSignInWithGoogle)
 
-                HStack {
-                    TextField("認証コード", text: $viewModel.verificationCode)
+                    Text("またはメールアドレスでログイン")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextField("メールアドレス", text: $viewModel.email)
                         .textFieldStyle(.roundedBorder)
                         .disabled(viewModel.isBusy)
 
-                    Button("コード送信", action: viewModel.sendCode)
+                    Button("メールリンクを送信", action: viewModel.sendMagicLink)
                         .buttonStyle(.bordered)
-                        .disabled(!viewModel.canSendCode)
-
-                    Button("ログイン", action: viewModel.verifyCode)
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!viewModel.canVerifyCode)
+                        .disabled(!viewModel.canSendMagicLink)
                 }
-
-                Text("まずはメールOTPを実装しています。Google / Apple は callback URL と配布導線を固めた段階で追加します。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
 
                 if let statusMessage = viewModel.statusMessage {
                     Label(statusMessage, systemImage: "checkmark.circle.fill")

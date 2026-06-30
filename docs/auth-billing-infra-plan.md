@@ -8,7 +8,7 @@ models are added later.
 ## Product Requirements
 
 - One account must work across macOS, future iOS, future Android, and the web.
-- Users can sign in with Google, Apple ID, or email OTP.
+- Users can sign in with Google, Apple ID, or email link.
 - Free users get a monthly review allowance, initially 50 reviews per month.
 - Paid users are managed through Stripe subscriptions.
 - The desktop app must not contain provider API keys.
@@ -346,7 +346,7 @@ remain as a user preference only when the current plan allows model choice.
 ### Phase 1: Shared Account and Server Gateway
 
 - Create Supabase project.
-- Add Google, Apple, and email OTP auth.
+- Add Google, Apple, and email-link auth.
 - Add the first schema: profiles, tenants, tenant_members, entitlements,
   usage_events.
 - Create Vercel/Next.js app with `/api/ai/review`.
