@@ -45,6 +45,9 @@ final class ReviewViewModel: ObservableObject {
     /// Hold-to-talk dictation state.
     @Published var isRecording = false
     @Published var isTranscribing = false
+    @Published var isCapturingScreenshot = false
+    @Published var needsScreenCapturePermission = false
+    @Published private(set) var screenshotAttachments: [ScreenshotAttachment] = []
     /// Briefly toggled true after a successful deploy for toast feedback.
     @Published var didDeploy = false
     @Published var focusedField: FocusField?
@@ -179,6 +182,15 @@ final class ReviewViewModel: ObservableObject {
             let needsSpace = !(draft.hasSuffix(" ") || draft.hasSuffix("\n"))
             draft += (needsSpace ? " " : "") + piece
         }
+    }
+
+    func addScreenshotAttachment(_ attachment: ScreenshotAttachment) {
+        needsScreenCapturePermission = false
+        screenshotAttachments.append(attachment)
+    }
+
+    func removeScreenshotAttachment(id: ScreenshotAttachment.ID) {
+        screenshotAttachments.removeAll { $0.id == id }
     }
 
     /// True when a review exists but the draft has changed since it was made.

@@ -11,6 +11,10 @@ extension Notification.Name {
     /// management window. The target section is set on `ManagementNavigator.shared`
     /// before posting.
     static let showManagement = Notification.Name("BombSquad.showManagement")
+    /// Posted from the panel to start an interactive screenshot capture.
+    static let captureScreenshot = Notification.Name("BombSquad.captureScreenshot")
+    /// Posted from the panel when the user wants to grant screen recording.
+    static let openScreenCaptureSettings = Notification.Name("BombSquad.openScreenCaptureSettings")
 }
 
 /// Owns the global hotkey and the floating review panel summoned by ⌘J.
@@ -26,10 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let gesture = ShiftGestureMonitor()
     private let recorder = AudioRecorder()
     private let transcriber = GroqTranscriber()
+    private let screenshotCapture = ScreenshotCaptureService()
     /// Guards against duplicate begin/end callbacks so the cues fire exactly once.
     private var isDictating = false
+    private var isCapturingScreenshot = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        terminateOtherRunningCopies()
         // Menu-bar accessory: no Dock icon, no window until summoned.
         NSApp.setActivationPolicy(.accessory)
         // Start the shared auth session subscription now (not on first summon),
@@ -62,11 +69,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleShowManagement), name: .showManagement, object: nil
         )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleCaptureScreenshot), name: .captureScreenshot, object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleOpenScreenCaptureSettings),
+            name: .openScreenCaptureSettings, object: nil
+        )
         // Modal-like: if focus leaves to another app/form, exit the mode (close).
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleResignActive),
             name: NSApplication.didResignActiveNotification, object: nil
         )
+    }
+
+    /// This app owns global keyboard monitoring and a menu-bar presence. During
+    /// development, Xcode can leave an older DerivedData build running while a
+    /// newer one starts, causing both copies to respond to the same gestures.
+    private func terminateOtherRunningCopies() {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let otherApps = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleIdentifier)
+            .filter { $0.processIdentifier != currentPID }
+
+        for app in otherApps {
+            app.terminate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                if !app.isTerminated {
+                    app.forceTerminate()
+                }
+            }
+        }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -77,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleResignActive() {
+        guard !isCapturingScreenshot else { return }
+
         // Login can legitimately move focus to the browser or Mail. Keep the
         // auth gate alive so the user has a visible return point after callback.
         guard authClient.currentSession() != nil else { return }
@@ -225,6 +261,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         closePanel()
     }
 
+    @objc private func handleCaptureScreenshot() {
+        startScreenshotCapture()
+    }
+
+    @objc private func handleOpenScreenCaptureSettings() {
+        ScreenCapturePermission.openSettings()
+    }
+
     private func togglePanel() {
         if let panel, panel.isVisible {
             closePanel()
@@ -292,6 +336,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel?.orderOut(nil)
         panel = nil
         currentViewModel = nil
+    }
+
+    private func startScreenshotCapture() {
+        guard !isCapturingScreenshot else { return }
+        guard let panel, let viewModel = currentViewModel else { return }
+
+        guard ScreenCapturePermission.isGranted || ScreenCapturePermission.request() else {
+            MainActor.assumeIsolated {
+                viewModel.needsScreenCapturePermission = true
+                viewModel.errorMessage = "スクリーンショットには画面収録の許可が必要です。"
+            }
+            return
+        }
+
+        isCapturingScreenshot = true
+        MainActor.assumeIsolated {
+            viewModel.isCapturingScreenshot = true
+            viewModel.needsScreenCapturePermission = false
+            viewModel.errorMessage = nil
+        }
+
+        panel.orderOut(nil)
+
+        Task {
+            do {
+                let attachment = try await screenshotCapture.captureInteractive()
+                await MainActor.run {
+                    viewModel.addScreenshotAttachment(attachment)
+                }
+            } catch ScreenshotCaptureError.cancelled {
+                // Cancellation is an expected outcome of the system capture UI.
+            } catch {
+                await MainActor.run {
+                    viewModel.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                }
+            }
+
+            await MainActor.run {
+                viewModel.isCapturingScreenshot = false
+                self.isCapturingScreenshot = false
+                guard self.panel === panel else { return }
+                NSApp.activate(ignoringOtherApps: true)
+                panel.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     /// Center the panel on whichever screen the cursor is on, so it never spills
