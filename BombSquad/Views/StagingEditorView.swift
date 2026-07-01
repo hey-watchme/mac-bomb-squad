@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Left pane: the staging area where the user drafts/pastes the message
@@ -16,7 +15,7 @@ struct StagingEditorView: View {
     private let shortcuts: [(String, String)] = [
         ("Enter", "送信"),
         ("Shift+Enter", "改行"),
-        ("右Shift ×2", "レビュー"),
+        ("右Shift ×2", "起動 / レビュー / 画面"),
         ("右Shift 長押し", "音声"),
         ("Esc", "閉じる"),
     ]
@@ -24,36 +23,25 @@ struct StagingEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label(viewModel.sessionKind == .vision ? "画面" : "原文",
-                      systemImage: viewModel.sessionKind == .vision ? "rectangle.on.rectangle" : "doc.plaintext")
+                Label("原文", systemImage: "doc.plaintext")
                     .font(.headline)
                 Spacer()
-                if viewModel.sessionKind == .text {
-                    Text("\(viewModel.draft.count) 文字")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("\(viewModel.draft.count) 文字")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            if viewModel.sessionKind == .vision, let attachment = viewModel.visionImage {
-                VisionSourceView(attachment: attachment, viewModel: viewModel)
-            } else {
-                // Enter sends the original text as-is (after the IME confirms any
-                // in-progress conversion); Shift+Enter inserts a newline.
-                SendableTextEditor(
-                    text: $viewModel.draft,
-                    focusedField: $focusedField,
-                    field: .draft,
-                    onSend: { viewModel.deployDraft() },
-                    onEscape: { NotificationCenter.default.post(name: .closePanel, object: nil) }
-                )
-                    .padding(8)
-                    .background(EditorFocusBackground(isFocused: isFocused))
-            }
-
-            if viewModel.sessionKind == .text, !viewModel.screenshotAttachments.isEmpty {
-                ScreenshotAttachmentStrip(viewModel: viewModel)
-            }
+            // Enter sends the original text as-is (after the IME confirms any
+            // in-progress conversion); Shift+Enter inserts a newline.
+            SendableTextEditor(
+                text: $viewModel.draft,
+                focusedField: $focusedField,
+                field: .draft,
+                onSend: { viewModel.deployDraft() },
+                onEscape: { NotificationCenter.default.post(name: .closePanel, object: nil) }
+            )
+                .padding(8)
+                .background(EditorFocusBackground(isFocused: isFocused))
 
             if viewModel.needsScreenCapturePermission {
                 ScreenCapturePermissionBanner()
@@ -107,79 +95,24 @@ struct StagingEditorView: View {
                 }
                 Spacer()
                 Button {
-                    viewModel.deployDraft()
-                } label: {
-                    Label("送信", systemImage: "paperplane.fill")
-                }
-                .disabled(!viewModel.canDeployDraft)
-                .help("レビューを使わず、原文のまま送信先へ入力します")
-
-                Button {
                     Task { await viewModel.runReview() }
                 } label: {
                     Label("レビュー", systemImage: "checkmark.shield")
                 }
                 .disabled(!viewModel.canReview)
+                .help("原文をレビューします")
+
+                Button {
+                    viewModel.deployDraft()
+                } label: {
+                    Label("送信", systemImage: "paperplane.fill")
+                }
+                .disabled(!viewModel.canDeployDraft)
                 .buttonStyle(.borderedProminent)
+                .help("レビューを使わず、原文のまま送信先へ入力します")
             }
         }
         .padding()
-    }
-}
-
-private struct VisionSourceView: View {
-    let attachment: ScreenshotAttachment
-    @ObservedObject var viewModel: ReviewViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            preview
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .background(EditorFocusBackground(isFocused: false))
-
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(attachment.fileName)
-                        .font(.caption)
-                        .lineLimit(1)
-                    if let sizeLabel = attachment.sizeLabel {
-                        Text(sizeLabel)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                Button {
-                    NotificationCenter.default.post(name: .captureScreenshot, object: nil)
-                } label: {
-                    Label("撮り直す", systemImage: "camera.viewfinder")
-                }
-                Button {
-                    viewModel.removeScreenshotAttachment(id: attachment.id)
-                } label: {
-                    Label("テキストに戻る", systemImage: "text.cursor")
-                }
-            }
-            .controlSize(.small)
-        }
-    }
-
-    @ViewBuilder
-    private var preview: some View {
-        if let image = NSImage(contentsOf: attachment.url) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .padding(8)
-        } else {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary.opacity(0.4))
-                Label("スクリーンショットを読み込めません", systemImage: "photo")
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 }
 
@@ -202,72 +135,5 @@ private struct ScreenCapturePermissionBanner: View {
         }
         .padding(10)
         .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-private struct ScreenshotAttachmentStrip: View {
-    @ObservedObject var viewModel: ReviewViewModel
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(viewModel.screenshotAttachments) { attachment in
-                    ScreenshotAttachmentChip(attachment: attachment) {
-                        viewModel.removeScreenshotAttachment(id: attachment.id)
-                    }
-                }
-            }
-            .padding(.vertical, 2)
-        }
-    }
-}
-
-private struct ScreenshotAttachmentChip: View {
-    let attachment: ScreenshotAttachment
-    let onRemove: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            thumbnail
-                .frame(width: 48, height: 36)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(attachment.fileName)
-                    .font(.caption)
-                    .lineLimit(1)
-                if let sizeLabel = attachment.sizeLabel {
-                    Text(sizeLabel)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 150, alignment: .leading)
-
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .help("このスクリーンショットを外します")
-        }
-        .padding(6)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    @ViewBuilder
-    private var thumbnail: some View {
-        if let image = NSImage(contentsOf: attachment.url) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(.quaternary)
-                Image(systemName: "photo")
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 }

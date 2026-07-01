@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recorder = AudioRecorder()
     private let transcriber = GroqTranscriber()
     private let screenshotCapture = ScreenshotCaptureService()
+    private let screenshotCaptureCue = ScreenshotCaptureCuePresenter()
     /// Guards against duplicate begin/end callbacks so the cues fire exactly once.
     private var isDictating = false
     private var isCapturingScreenshot = false
@@ -51,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard granted else { return }
             DispatchQueue.main.async { self?.recorder.warmUp() }
         }
-        // Right Shift double-tap = next: summon → review → deploy.
+        // Right Shift double-tap = summon → review, or empty text → vision → close.
         // Right Shift long-press = hold-to-talk dictation. ⌘J toggles the panel.
         HotKeyCenter.shared.onHotKey = { [weak self] in self?.togglePanel() }
         HotKeyCenter.shared.register()
@@ -122,8 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel != nil { closePanel() }
     }
 
-    /// Right Shift double-tap: if the panel is closed, summon it. If it's open,
-    /// only the left draft editor responds: empty closes, otherwise it reviews.
+    /// Right Shift double-tap: closed summons text mode; empty text mode enters
+    /// vision capture; vision mode closes; non-empty draft mode reviews.
     /// Invoked from the key-event monitor, which delivers on the main thread.
     private func advance() {
         if panel == nil {
@@ -131,11 +132,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         MainActor.assumeIsolated {
-            guard currentViewModel?.focusedField == .draft else { return }
-            if currentViewModel?.isEmptyDraft ?? true {
+            guard let viewModel = currentViewModel else {
                 closePanel()
+                return
+            }
+
+            if viewModel.sessionKind == .vision {
+                closePanel()
+                return
+            }
+
+            guard viewModel.focusedField == .draft else { return }
+            if viewModel.isEmptyDraft {
+                startScreenshotCapture()
             } else {
-                currentViewModel?.requestReviewFromHotkey()
+                viewModel.requestReviewFromHotkey()
             }
         }
     }
@@ -143,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleEditorFocus() {
         guard panel != nil else { return }
         MainActor.assumeIsolated {
+            guard currentViewModel?.sessionKind == .text else { return }
             currentViewModel?.toggleFocusedField()
         }
     }
@@ -167,9 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// negligible in practice.
     private func startDictation() {
         guard !isDictating else { return }
-        isDictating = true
         if panel == nil { showPanel() }
         let vm = currentViewModel
+        guard MainActor.assumeIsolated({ vm?.sessionKind == .text }) else { return }
+        isDictating = true
         SoundFeedback.recordingStarted()
         MainActor.assumeIsolated {
             vm?.errorMessage = nil
@@ -361,6 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task {
             do {
+                await screenshotCaptureCue.showBriefly()
                 let attachment = try await screenshotCapture.captureInteractive()
                 await MainActor.run {
                     viewModel.addScreenshotAttachment(attachment)

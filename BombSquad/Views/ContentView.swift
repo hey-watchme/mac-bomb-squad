@@ -25,16 +25,27 @@ struct ContentView: View {
     }
 
     var body: some View {
-        HSplitView {
-            StagingEditorView(viewModel: viewModel, focusedField: $viewModel.focusedField)
-                .frame(minWidth: 360, idealWidth: 440)
-            ReviewPanelView(viewModel: viewModel, focusedField: $viewModel.focusedField)
-                .frame(minWidth: 380, idealWidth: 460)
+        Group {
+            if viewModel.sessionKind == .vision {
+                VisionPanelView(viewModel: viewModel)
+                    .frame(minWidth: 760, minHeight: 520)
+            } else {
+                HSplitView {
+                    StagingEditorView(viewModel: viewModel, focusedField: $viewModel.focusedField)
+                        .frame(minWidth: 360, idealWidth: 440)
+                    ReviewPanelView(viewModel: viewModel, focusedField: $viewModel.focusedField)
+                        .frame(minWidth: 380, idealWidth: 460)
+                }
+                .frame(minWidth: 820, minHeight: 560)
+            }
         }
-        .frame(minWidth: 820, minHeight: 560)
         .onAppear {
             // Defer so the panel is key before focusing the original editor.
-            DispatchQueue.main.async { viewModel.focusedField = .draft }
+            DispatchQueue.main.async {
+                if viewModel.sessionKind == .text {
+                    viewModel.focusedField = .draft
+                }
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Right pane: shows the review findings, the diff, the editable revision,
@@ -36,9 +37,7 @@ struct ReviewPanelView: View {
                 errorBanner(message)
             }
 
-            if viewModel.sessionKind == .vision {
-                visionState
-            } else if let result = viewModel.result {
+            if let result = viewModel.result {
                 resultBody(result)
             } else if viewModel.isLoading {
                 loadingState
@@ -60,51 +59,6 @@ struct ReviewPanelView: View {
         .animation(.easeInOut, value: viewModel.didDeploy)
         .task {
             await viewModel.loadRecentHistoryIfNeeded()
-        }
-    }
-
-    @ViewBuilder
-    private var visionState: some View {
-        if viewModel.isInterpretingVision {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("画面を読み取っています…")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(16)
-            .background(EditorFocusBackground(isFocused: false))
-        } else if let result = viewModel.visionResult {
-            VisionInterpretationView(result: result)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            HStack {
-                Button {
-                    Task { await viewModel.runVisionInterpretation() }
-                } label: {
-                    Label("再読み取り", systemImage: "arrow.triangle.2.circlepath")
-                }
-                Spacer()
-                Button {
-                    viewModel.copyVisionResult()
-                } label: {
-                    Label("コピー", systemImage: "doc.on.clipboard.fill")
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("スクリーンショットの説明がここに表示されます")
-                    .foregroundStyle(.tertiary)
-                Button {
-                    Task { await viewModel.runVisionInterpretation() }
-                } label: {
-                    Label("読み取る", systemImage: "eye")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(16)
-            .background(EditorFocusBackground(isFocused: false))
         }
     }
 
@@ -261,9 +215,6 @@ struct ReviewPanelView: View {
     }
 
     private var headerTitle: String {
-        if viewModel.sessionKind == .vision {
-            return "画面の説明"
-        }
         if viewModel.mode == .compose, viewModel.result == nil, !viewModel.isLoading {
             return "最近の履歴"
         }
@@ -271,9 +222,6 @@ struct ReviewPanelView: View {
     }
 
     private var headerSystemImage: String {
-        if viewModel.sessionKind == .vision {
-            return "eye"
-        }
         if viewModel.mode == .compose, viewModel.result == nil, !viewModel.isLoading {
             return "clock.arrow.circlepath"
         }
@@ -295,6 +243,181 @@ struct ReviewPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
             .foregroundStyle(.red)
+    }
+}
+
+struct VisionPanelView: View {
+    @ObservedObject var viewModel: ReviewViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+
+            if let message = viewModel.errorMessage {
+                errorBanner(message)
+            }
+
+            HSplitView {
+                VisionPane(title: "スクリーンショット", systemImage: "rectangle.dashed") {
+                    sourcePane
+                }
+                    .frame(minWidth: 300, idealWidth: 360)
+                VisionPane(title: "読み取り結果", systemImage: "doc.text.magnifyingglass") {
+                    resultPane
+                }
+                    .frame(minWidth: 360, idealWidth: 480)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(16)
+        .overlay(alignment: .bottom) {
+            if viewModel.didDeploy {
+                Label("クリップボードにコピーしました", systemImage: "checkmark.circle.fill")
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(.green.opacity(0.9), in: Capsule())
+                    .foregroundStyle(.white)
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut, value: viewModel.didDeploy)
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Label("画面を読む", systemImage: "eye")
+                .font(.headline)
+            if let ms = viewModel.lastDurationMs {
+                Text("\(viewModel.lastModelName ?? "") · \(ms) ms")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Spacer()
+            Button {
+                NotificationCenter.default.post(name: .captureScreenshot, object: nil)
+            } label: {
+                Label("撮り直す", systemImage: "camera.viewfinder")
+            }
+            .disabled(viewModel.isCapturingScreenshot)
+
+            Button {
+                Task { await viewModel.runVisionInterpretation() }
+            } label: {
+                Label("再読み取り", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .disabled(viewModel.visionImage == nil || viewModel.isInterpretingVision)
+
+            Button {
+                viewModel.copyVisionResult()
+            } label: {
+                Label("コピー", systemImage: "doc.on.clipboard.fill")
+            }
+            .disabled(viewModel.visionResult == nil)
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var sourcePane: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.quaternary.opacity(0.25))
+                screenshotPreview
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if let attachment = viewModel.visionImage {
+                HStack(spacing: 8) {
+                    Text(attachment.fileName)
+                        .font(.caption)
+                        .lineLimit(1)
+                    if let sizeLabel = attachment.sizeLabel {
+                        Text(sizeLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var screenshotPreview: some View {
+        if let attachment = viewModel.visionImage,
+           let image = NSImage(contentsOf: attachment.url) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .padding(12)
+        } else {
+            VStack(spacing: 10) {
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
+                Text("スクリーンショットがありません")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var resultPane: some View {
+        if viewModel.isInterpretingVision {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("画面を読み取っています…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(16)
+            .background(EditorFocusBackground(isFocused: false))
+        } else if let result = viewModel.visionResult {
+            VisionInterpretationView(result: result)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("画面の説明がここに表示されます")
+                    .foregroundStyle(.tertiary)
+                Button {
+                    Task { await viewModel.runVisionInterpretation() }
+                } label: {
+                    Label("読み取る", systemImage: "eye")
+                }
+                .disabled(viewModel.visionImage == nil)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(16)
+            .background(EditorFocusBackground(isFocused: false))
+        }
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle.fill")
+            .font(.callout)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+            .foregroundStyle(.red)
+    }
+}
+
+private struct VisionPane<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding()
     }
 }
 

@@ -92,3 +92,134 @@ struct ScreenshotCaptureService {
         return (representation.pixelsWide, representation.pixelsHigh)
     }
 }
+
+final class ScreenshotCaptureCuePresenter {
+    private var windows: [NSWindow] = []
+
+    @MainActor
+    func showBriefly() async {
+        show()
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        hide()
+        try? await Task.sleep(nanoseconds: 120_000_000)
+    }
+
+    @MainActor
+    private func show() {
+        hide()
+        windows = NSScreen.screens.map { screen in
+            let window = NSWindow(
+                contentRect: screen.frame,
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false,
+                screen: screen
+            )
+            window.backgroundColor = .clear
+            window.isOpaque = false
+            window.hasShadow = false
+            window.ignoresMouseEvents = true
+            window.level = .screenSaver
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            window.contentView = ScreenshotCaptureCueView(frame: NSRect(origin: .zero, size: screen.frame.size))
+            window.orderFrontRegardless()
+            return window
+        }
+    }
+
+    @MainActor
+    private func hide() {
+        windows.forEach { $0.orderOut(nil) }
+        windows.removeAll()
+    }
+}
+
+private final class ScreenshotCaptureCueView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        NSColor.black.withAlphaComponent(0.36).setFill()
+        bounds.fill()
+
+        drawFrameMarks()
+        drawInstructionPill()
+    }
+
+    private func drawFrameMarks() {
+        let inset: CGFloat = 34
+        let length: CGFloat = 62
+        let lineWidth: CGFloat = 4
+        let rect = bounds.insetBy(dx: inset, dy: inset)
+
+        let path = NSBezierPath()
+        path.lineWidth = lineWidth
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+
+        path.move(to: NSPoint(x: rect.minX, y: rect.minY + length))
+        path.line(to: NSPoint(x: rect.minX, y: rect.minY))
+        path.line(to: NSPoint(x: rect.minX + length, y: rect.minY))
+
+        path.move(to: NSPoint(x: rect.maxX - length, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.minY + length))
+
+        path.move(to: NSPoint(x: rect.maxX, y: rect.maxY - length))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        path.line(to: NSPoint(x: rect.maxX - length, y: rect.maxY))
+
+        path.move(to: NSPoint(x: rect.minX + length, y: rect.maxY))
+        path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        path.line(to: NSPoint(x: rect.minX, y: rect.maxY - length))
+
+        NSColor.controlAccentColor.setStroke()
+        path.stroke()
+    }
+
+    private func drawInstructionPill() {
+        let title = "範囲を選択"
+        let subtitle = "読み取りたい領域をドラッグしてください"
+        let maxWidth = min(bounds.width - 80, 420)
+        let pillRect = NSRect(
+            x: bounds.midX - maxWidth / 2,
+            y: bounds.midY - 42,
+            width: maxWidth,
+            height: 84
+        )
+
+        let background = NSBezierPath(roundedRect: pillRect, xRadius: 14, yRadius: 14)
+        NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
+        background.fill()
+        NSColor.controlAccentColor.withAlphaComponent(0.75).setStroke()
+        background.lineWidth = 1
+        background.stroke()
+
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 19, weight: .semibold),
+            .foregroundColor: NSColor.labelColor
+        ]
+        let subtitleAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+
+        drawCentered(title, in: NSRect(x: pillRect.minX + 20, y: pillRect.midY + 4, width: pillRect.width - 40, height: 24), attributes: titleAttributes)
+        drawCentered(subtitle, in: NSRect(x: pillRect.minX + 20, y: pillRect.midY - 24, width: pillRect.width - 40, height: 20), attributes: subtitleAttributes)
+    }
+
+    private func drawCentered(_ text: String, in rect: NSRect, attributes: [NSAttributedString.Key: Any]) {
+        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let size = attributed.size()
+        attributed.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+    }
+}
