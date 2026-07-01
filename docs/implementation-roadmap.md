@@ -1,5 +1,9 @@
 # Bomb Squad Implementation Roadmap
 
+> **2026-07-02 更新**: 製品は Universal I/O (I//O) へ方針転換した。今後の正本は
+> [universal-io-master-plan.md](universal-io-master-plan.md)。このファイルは
+> 認証・課金インフラの経緯資料として残す（マスタープラン M3 が参照する）。
+
 This is the resumable execution plan after the app rename. Keep this file
 updated whenever a phase starts, finishes, or changes direction.
 
