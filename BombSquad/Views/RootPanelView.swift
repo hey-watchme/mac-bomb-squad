@@ -7,9 +7,20 @@ struct RootPanelView: View {
     let config: BombSquadConfig.Snapshot
     @State private var didAutoReviewAfterLogin = false
 
+    @MainActor
     init(
         reviewViewModel: ReviewViewModel,
-        authViewModel: AuthViewModel = .shared,
+        config: BombSquadConfig.Snapshot = BombSquadConfig.snapshot()
+    ) {
+        self.reviewViewModel = reviewViewModel
+        self.authViewModel = .shared
+        self.config = config
+    }
+
+    @MainActor
+    init(
+        reviewViewModel: ReviewViewModel,
+        authViewModel: AuthViewModel,
         config: BombSquadConfig.Snapshot = BombSquadConfig.snapshot()
     ) {
         self.reviewViewModel = reviewViewModel

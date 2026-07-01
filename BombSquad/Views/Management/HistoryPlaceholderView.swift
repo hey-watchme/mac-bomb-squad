@@ -1,22 +1,125 @@
 import SwiftUI
 
-/// History section placeholder. Review/transform history persistence is not yet
-/// implemented (no data layer), so this is intentionally a "coming soon" state.
 struct HistoryPlaceholderView: View {
+    @StateObject private var viewModel = HistoryViewModel()
+    @AppStorage(AppSettings.isHistoryEnabledKey) private var isHistoryEnabled = true
+
     var body: some View {
+        Group {
+            if viewModel.isLoading && viewModel.entries.isEmpty {
+                ProgressView("履歴を読み込み中…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.entries.isEmpty {
+                emptyState
+            } else {
+                List(viewModel.entries) { entry in
+                    HistoryRow(entry: entry)
+                }
+                .listStyle(.inset)
+            }
+        }
+        .overlay(alignment: .top) {
+            if let errorMessage = viewModel.errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.red)
+                    .padding()
+            }
+        }
+        .safeAreaInset(edge: .top) {
+            if !isHistoryEnabled {
+                Label("新しい履歴の保存は現在オフです。既存の履歴だけ表示しています。", systemImage: "tray")
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+            }
+        }
+        .navigationTitle("履歴")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("削除") {
+                    Task { await viewModel.clear() }
+                }
+                .disabled(viewModel.entries.isEmpty)
+            }
+        }
+        .task {
+            await viewModel.reload()
+        }
+    }
+
+    private var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 44))
                 .foregroundStyle(.tertiary)
             Text("履歴")
                 .font(.title2.weight(.semibold))
-            Text("レビュー・変換した内容の履歴は近日対応予定です。")
+            Text("送信またはコピーが完了した内容を、最新 \(AppSettings.localHistoryLimit) 件までこの Mac に保存します。")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: 360)
+        .frame(maxWidth: 420)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("履歴")
+    }
+}
+
+private struct HistoryRow: View {
+    let entry: HistoryEntry
+
+    private static let formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.locale = Locale(identifier: "ja_JP")
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(entry.mode.displayName)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.quaternary, in: Capsule())
+                Text(entry.action.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(Self.formatter.string(from: entry.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            textBlock(title: entry.action == .sent ? "送信文" : "コピー文", text: entry.finalText)
+
+            HStack(spacing: 8) {
+                Text(entry.usedReview ? (entry.modelName ?? "レビューあり") : "レビューなし")
+                if let outputLanguage = entry.outputLanguage {
+                    Text(outputLanguage)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func textBlock(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }

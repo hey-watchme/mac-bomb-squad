@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Right Shift long-press = hold-to-talk dictation. ⌘J toggles the panel.
         HotKeyCenter.shared.onHotKey = { [weak self] in self?.togglePanel() }
         HotKeyCenter.shared.register()
+        gesture.onSingleTap = { [weak self] in self?.toggleEditorFocus() }
         gesture.onDoubleTap = { [weak self] in self?.advance() }
         gesture.onLongPressBegan = { [weak self] in self?.startDictation() }
         gesture.onLongPressEnded = { [weak self] in self?.stopDictationAndTranscribe() }
@@ -85,8 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel != nil { closePanel() }
     }
 
-    /// Right Shift double-tap: if the panel is closed, summon it. If it's open
-    /// and empty, close it (a "never mind" gesture). Otherwise advance the flow.
+    /// Right Shift double-tap: if the panel is closed, summon it. If it's open,
+    /// only the left draft editor responds: empty closes, otherwise it reviews.
     /// Invoked from the key-event monitor, which delivers on the main thread.
     private func advance() {
         if panel == nil {
@@ -94,11 +95,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         MainActor.assumeIsolated {
+            guard currentViewModel?.focusedField == .draft else { return }
             if currentViewModel?.isEmptyDraft ?? true {
                 closePanel()
             } else {
-                currentViewModel?.advance()
+                currentViewModel?.requestReviewFromHotkey()
             }
+        }
+    }
+
+    private func toggleEditorFocus() {
+        guard panel != nil else { return }
+        MainActor.assumeIsolated {
+            currentViewModel?.toggleFocusedField()
         }
     }
 
@@ -145,8 +154,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard isDictating else { return }
         isDictating = false
         let vm = currentViewModel
-        // Stop cue plays once the recording finishes. (Known minor issue: it can
-        // sound like a short echo; kept because the on/off cue is useful.)
         recorder.onFinish = { SoundFeedback.recordingStopped() }
         guard let url = recorder.stop() else { return }
         MainActor.assumeIsolated {
@@ -238,8 +245,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // readable version is for reading, so "send" only copies to clipboard.
             deployer = ClipboardDeployer()
         }
-        let viewModel = ReviewViewModel(deployer: deployer, mode: mode)
+        let viewModel = MainActor.assumeIsolated {
+            ReviewViewModel(deployer: deployer, mode: mode)
+        }
         currentViewModel = viewModel
+        MainActor.assumeIsolated {
+            viewModel.restorePersistedDraftIfNeeded()
+        }
         if let prefill {
             MainActor.assumeIsolated {
                 viewModel.draft = prefill
@@ -264,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentViewController = NSHostingController(
-            rootView: RootPanelView(reviewViewModel: viewModel)
+            rootView: MainActor.assumeIsolated { RootPanelView(reviewViewModel: viewModel) }
         )
         // Enforce a fixed size so SwiftUI can't resize the window out from under
         // the centering math; then center exactly.

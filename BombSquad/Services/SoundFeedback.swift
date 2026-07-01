@@ -1,33 +1,48 @@
-import AudioToolbox
+import AVFoundation
 import Foundation
 
-/// Short audio cues for mic on/off, like Amical. Uses AudioServices system
-/// sounds: low-latency, fire-and-forget, single playback (no overlap/echo).
-/// Sound IDs are registered once up front so the first cue isn't a cold load.
+/// Short audio cues for mic on/off.
 enum SoundFeedback {
-    private static let startSound = makeSound("Tink") // "pico" — recording started
-    private static let stopSound = makeSound("Pop")   // "poko" — recording stopped
+    private static let players = CuePlayers()
 
-    /// Pre-register the sounds at launch so the first play is instant.
+    /// Preload the players at launch so the first cue is instant.
     static func prepare() {
-        _ = startSound
-        _ = stopSound
+        players.prepare()
     }
 
-    static func recordingStarted() { play(startSound) }
-    static func recordingStopped() { play(stopSound) }
+    static func recordingStarted() { players.playStart() }
+    static func recordingStopped() { players.playStop() }
+}
 
-    private static func play(_ id: SystemSoundID?) {
-        guard let id else { return }
-        AudioServicesPlaySystemSound(id)
+private final class CuePlayers {
+    private let startPlayer = makePlayer(named: "Morse")
+    private let stopPlayer = makePlayer(named: "Bottle")
+
+    func prepare() {
+        startPlayer?.prepareToPlay()
+        stopPlayer?.prepareToPlay()
     }
 
-    private static func makeSound(_ name: String) -> SystemSoundID? {
-        let path = "/System/Library/Sounds/\(name).aiff"
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
-        var id: SystemSoundID = 0
-        let url = URL(fileURLWithPath: path) as CFURL
-        guard AudioServicesCreateSystemSoundID(url, &id) == noErr else { return nil }
-        return id
+    func playStart() {
+        play(startPlayer)
+    }
+
+    func playStop() {
+        play(stopPlayer)
+    }
+
+    private func play(_ player: AVAudioPlayer?) {
+        guard let player else { return }
+        if player.isPlaying { player.stop() }
+        player.currentTime = 0
+        player.prepareToPlay()
+        player.play()
+    }
+
+    private static func makePlayer(named name: String) -> AVAudioPlayer? {
+        let url = URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff")
+        let player = try? AVAudioPlayer(contentsOf: url)
+        player?.prepareToPlay()
+        return player
     }
 }

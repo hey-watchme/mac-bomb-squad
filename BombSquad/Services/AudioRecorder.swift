@@ -13,9 +13,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
     private var recorder: AVAudioRecorder?
     private(set) var fileURL: URL?
 
-    /// Called once the recording has officially finished and the audio input is
-    /// released. This is the safe moment to play a cue sound — playing earlier
-    /// (during teardown) makes the system sound crack/echo.
+    /// Called after AVAudioRecorder reports that stop processing has completed.
     var onFinish: (() -> Void)?
 
     func start() throws {

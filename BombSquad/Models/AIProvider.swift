@@ -96,8 +96,17 @@ struct ReviewModel: Identifiable, Hashable {
 /// Lightweight app-wide settings backed by UserDefaults.
 enum AppSettings {
     static let selectedModelKey = "selectedModelID"
+    static let isHistoryEnabledKey = "isHistoryEnabled"
+    static let localHistoryLimit = 100
 
     static func selectedModel() -> ReviewModel {
         ReviewModel.find(id: UserDefaults.standard.string(forKey: selectedModelKey))
+    }
+
+    static func isHistoryEnabled() -> Bool {
+        if UserDefaults.standard.object(forKey: isHistoryEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: isHistoryEnabledKey)
     }
 }

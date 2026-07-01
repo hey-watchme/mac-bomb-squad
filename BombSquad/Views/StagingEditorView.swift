@@ -15,7 +15,7 @@ struct StagingEditorView: View {
     private let shortcuts: [(String, String)] = [
         ("Enter", "送信"),
         ("Shift+Enter", "改行"),
-        ("右Shift ×2", "次へ"),
+        ("右Shift ×2", "レビュー"),
         ("右Shift 長押し", "音声"),
         ("Esc", "閉じる"),
     ]
@@ -69,7 +69,7 @@ struct StagingEditorView: View {
 
                 if viewModel.isRecording {
                     Image(systemName: "mic.fill").foregroundStyle(.red)
-                    Text("録音中…（離すと文字起こし）").font(.caption).foregroundStyle(.secondary)
+                    Text("録音中…").font(.caption).foregroundStyle(.secondary)
                 } else if viewModel.isTranscribing {
                     ProgressView().controlSize(.small)
                     Text("文字起こし中…").font(.caption).foregroundStyle(.secondary)

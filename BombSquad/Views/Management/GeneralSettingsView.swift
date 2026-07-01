@@ -5,6 +5,7 @@ import SwiftUI
 /// this section is purely technical settings.
 struct GeneralSettingsView: View {
     @AppStorage(AppSettings.selectedModelKey) private var selectedModelID = ReviewModel.defaultModel.id
+    @AppStorage(AppSettings.isHistoryEnabledKey) private var isHistoryEnabled = true
 
     let config: BombSquadConfig.Snapshot
     @State private var openAIKey: String = ""
@@ -50,6 +51,14 @@ struct GeneralSettingsView: View {
                 configRow("Supabase anon key", entry: config.supabaseAnonKey)
 
                 Text("値の読み取り順は `BombSquad.local.plist` → `ProcessInfo.environment` → `Info.plist` です。通常はリポジトリ直下の `BombSquad.local.plist` を使います。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("履歴") {
+                Toggle("ローカル履歴を保存", isOn: $isHistoryEnabled)
+                Text("現在の履歴はこの Mac の SQLite にだけ保存します。クラウド同期はまだ行いません。保存上限は最新 \(AppSettings.localHistoryLimit) 件です。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -10,8 +10,7 @@ struct ReviewPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Label(viewModel.mode == .transform ? "読み取り結果" : "レビュー結果",
-                      systemImage: viewModel.mode == .transform ? "doc.text.magnifyingglass" : "text.magnifyingglass")
+                Label(headerTitle, systemImage: headerSystemImage)
                     .font(.headline)
                 Spacer()
                 if let ms = viewModel.lastDurationMs {
@@ -57,12 +56,15 @@ struct ReviewPanelView: View {
             }
         }
         .animation(.easeInOut, value: viewModel.didDeploy)
+        .task {
+            await viewModel.loadRecentHistoryIfNeeded()
+        }
     }
 
     @ViewBuilder
     private func resultBody(_ result: ReviewResult) -> some View {
         if viewModel.needsReReview {
-            Label("原文が変更されました。次の 右Shift2回 で再レビューします。",
+            Label("原文が変更されました。原文で 右Shift2回 すると再レビューします。",
                   systemImage: "arrow.triangle.2.circlepath")
                 .font(.caption)
                 .foregroundStyle(.orange)
@@ -148,12 +150,90 @@ struct ReviewPanelView: View {
     /// faint placeholder, mirroring the left editor's frame so the layout is
     /// stable once a result fills it in.
     private var emptyState: some View {
-        Text("レビュー結果がここに表示されます")
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(16)
-            .background(EditorFocusBackground(isFocused: false))
+        Group {
+            if viewModel.mode == .compose, !viewModel.recentHistoryEntries.isEmpty {
+                recentHistoryState
+            } else if viewModel.mode == .compose, viewModel.isLoadingRecentHistory {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("履歴を読み込み中…")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(16)
+                .background(EditorFocusBackground(isFocused: false))
+            } else if viewModel.mode == .compose {
+                Text("レビュー結果がここに表示されます\n\nまだ履歴がありません。")
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(16)
+                    .background(EditorFocusBackground(isFocused: false))
+            } else {
+                Text("レビュー結果がここに表示されます")
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(16)
+                    .background(EditorFocusBackground(isFocused: false))
+            }
+        }
     }
+
+    private var recentHistoryState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(viewModel.recentHistoryEntries) { entry in
+                Button {
+                    viewModel.applyRecentHistory(entry)
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(Self.recentHistoryFormatter.string(from: entry.createdAt))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(entry.usedReview ? "レビューあり" : "レビューなし")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        Text(entry.finalText)
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(3)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .background(EditorFocusBackground(isFocused: false))
+    }
+
+    private var headerTitle: String {
+        if viewModel.mode == .compose, viewModel.result == nil, !viewModel.isLoading {
+            return "最近の履歴"
+        }
+        return viewModel.mode == .transform ? "読み取り結果" : "レビュー結果"
+    }
+
+    private var headerSystemImage: String {
+        if viewModel.mode == .compose, viewModel.result == nil, !viewModel.isLoading {
+            return "clock.arrow.circlepath"
+        }
+        return viewModel.mode == .transform ? "doc.text.magnifyingglass" : "text.magnifyingglass"
+    }
+
+    private static let recentHistoryFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        formatter.locale = Locale(identifier: "ja_JP")
+        return formatter
+    }()
 
     private func errorBanner(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.triangle.fill")

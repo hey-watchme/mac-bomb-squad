@@ -1,6 +1,7 @@
 import AppKit
 
 /// Distinguishes Right-Shift gestures, globally and within the app:
+/// - single-tap  → switch editor focus
 /// - double-tap  → "next" (summon / review / deploy)
 /// - long-press  → hold-to-talk dictation (began on hold, ended on release)
 ///
@@ -11,6 +12,7 @@ import AppKit
 /// (e.g. typing a capital letter) cancels the pending gesture.
 /// Requires Accessibility permission (already requested for paste injection).
 final class ShiftGestureMonitor {
+    var onSingleTap: (() -> Void)?
     var onDoubleTap: (() -> Void)?
     var onLongPressBegan: (() -> Void)?
     var onLongPressEnded: (() -> Void)?
@@ -21,6 +23,7 @@ final class ShiftGestureMonitor {
     private var shiftDownClean = false
     private var isLongPressing = false
     private var longPressWork: DispatchWorkItem?
+    private var singleTapWork: DispatchWorkItem?
     private var monitors: [Any] = []
 
     // Right Shift physical key code.
@@ -58,10 +61,13 @@ final class ShiftGestureMonitor {
             } else if shiftDownClean {
                 let now = event.timestamp
                 if now - lastTapTime <= doubleTapThreshold {
+                    singleTapWork?.cancel()
+                    singleTapWork = nil
                     lastTapTime = 0
                     onDoubleTap?()
                 } else {
                     lastTapTime = now
+                    scheduleSingleTap()
                 }
             }
             shiftDownClean = false
@@ -79,6 +85,17 @@ final class ShiftGestureMonitor {
         DispatchQueue.main.asyncAfter(deadline: .now() + longPressThreshold, execute: work)
     }
 
+    private func scheduleSingleTap() {
+        singleTapWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.lastTapTime = 0
+            self.onSingleTap?()
+        }
+        singleTapWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + doubleTapThreshold, execute: work)
+    }
+
     /// A non-modifier key was pressed → cancel any pending tap/long-press.
     /// Does not stop an already-running dictation (isLongPressing stays true).
     private func invalidatePending() {
@@ -86,5 +103,7 @@ final class ShiftGestureMonitor {
         lastTapTime = 0
         longPressWork?.cancel()
         longPressWork = nil
+        singleTapWork?.cancel()
+        singleTapWork = nil
     }
 }
