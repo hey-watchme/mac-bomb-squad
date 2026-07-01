@@ -36,7 +36,9 @@ struct ReviewPanelView: View {
                 errorBanner(message)
             }
 
-            if let result = viewModel.result {
+            if viewModel.sessionKind == .vision {
+                visionState
+            } else if let result = viewModel.result {
                 resultBody(result)
             } else if viewModel.isLoading {
                 loadingState
@@ -58,6 +60,51 @@ struct ReviewPanelView: View {
         .animation(.easeInOut, value: viewModel.didDeploy)
         .task {
             await viewModel.loadRecentHistoryIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private var visionState: some View {
+        if viewModel.isInterpretingVision {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("画面を読み取っています…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(16)
+            .background(EditorFocusBackground(isFocused: false))
+        } else if let result = viewModel.visionResult {
+            VisionInterpretationView(result: result)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack {
+                Button {
+                    Task { await viewModel.runVisionInterpretation() }
+                } label: {
+                    Label("再読み取り", systemImage: "arrow.triangle.2.circlepath")
+                }
+                Spacer()
+                Button {
+                    viewModel.copyVisionResult()
+                } label: {
+                    Label("コピー", systemImage: "doc.on.clipboard.fill")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("スクリーンショットの説明がここに表示されます")
+                    .foregroundStyle(.tertiary)
+                Button {
+                    Task { await viewModel.runVisionInterpretation() }
+                } label: {
+                    Label("読み取る", systemImage: "eye")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(16)
+            .background(EditorFocusBackground(isFocused: false))
         }
     }
 
@@ -214,6 +261,9 @@ struct ReviewPanelView: View {
     }
 
     private var headerTitle: String {
+        if viewModel.sessionKind == .vision {
+            return "画面の説明"
+        }
         if viewModel.mode == .compose, viewModel.result == nil, !viewModel.isLoading {
             return "最近の履歴"
         }
@@ -221,6 +271,9 @@ struct ReviewPanelView: View {
     }
 
     private var headerSystemImage: String {
+        if viewModel.sessionKind == .vision {
+            return "eye"
+        }
         if viewModel.mode == .compose, viewModel.result == nil, !viewModel.isLoading {
             return "clock.arrow.circlepath"
         }
@@ -242,6 +295,78 @@ struct ReviewPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
             .foregroundStyle(.red)
+    }
+}
+
+private struct VisionInterpretationView: View {
+    let result: VisionInterpretationResult
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                section("要約", systemImage: "text.magnifyingglass") {
+                    Text(result.summary)
+                        .font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if !result.interpretation.isEmpty {
+                    section("説明", systemImage: "doc.text") {
+                        Text(result.interpretation)
+                            .font(.callout)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+
+                if !result.visibleText.isEmpty {
+                    section("読める文字", systemImage: "text.viewfinder") {
+                        bulletList(result.visibleText)
+                    }
+                }
+
+                if !result.suggestedActions.isEmpty {
+                    section("次にできること", systemImage: "checklist") {
+                        bulletList(result.suggestedActions)
+                    }
+                }
+
+                if !result.uncertainties.isEmpty {
+                    section("不確かな点", systemImage: "questionmark.diamond") {
+                        bulletList(result.uncertainties)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .background(EditorFocusBackground(isFocused: false))
+    }
+
+    private func section<Content: View>(
+        _ title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline)
+                .bold()
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func bulletList(_ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: 6) {
+                    Text("•")
+                    Text(item)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.callout)
+            }
+        }
     }
 }
 

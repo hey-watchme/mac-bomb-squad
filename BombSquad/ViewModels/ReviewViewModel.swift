@@ -48,6 +48,11 @@ final class ReviewViewModel: ObservableObject {
     @Published var isCapturingScreenshot = false
     @Published var needsScreenCapturePermission = false
     @Published private(set) var screenshotAttachments: [ScreenshotAttachment] = []
+    @Published var sessionKind: InputSessionKind = .text
+    @Published var visionImage: ScreenshotAttachment?
+    @Published var visionResult: VisionInterpretationResult?
+    @Published var visionInstruction = ""
+    @Published var isInterpretingVision = false
     /// Briefly toggled true after a successful deploy for toast feedback.
     @Published var didDeploy = false
     @Published var focusedField: FocusField?
@@ -68,14 +73,17 @@ final class ReviewViewModel: ObservableObject {
     /// Optional fixed provider (used by tests/previews). When nil, the provider
     /// is built from the user's selection at review time.
     private let overrideProvider: ReviewProvider?
+    private let visionProvider: VisionProvider
     private let deployer: Deployer
 
     init(
         provider: ReviewProvider? = nil,
+        visionProvider: VisionProvider = OpenAIVisionClient(),
         deployer: Deployer = ClipboardDeployer(),
         mode: ReviewMode = .compose
     ) {
         self.overrideProvider = provider
+        self.visionProvider = visionProvider
         self.deployer = deployer
         self.mode = mode
     }
@@ -91,7 +99,7 @@ final class ReviewViewModel: ObservableObject {
     }
 
     var canReview: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
+        sessionKind == .text && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
     }
 
     func runReview() async {
@@ -120,7 +128,7 @@ final class ReviewViewModel: ObservableObject {
     }
 
     var canDeployDraft: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        sessionKind == .text && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// True when there is nothing to act on — used so a Right-Shift double-tap on an empty draft
@@ -130,7 +138,7 @@ final class ReviewViewModel: ObservableObject {
     }
 
     var canFocusRevision: Bool {
-        result != nil
+        sessionKind == .text && result != nil
     }
 
     /// Restore the last in-progress compose draft after reopening the panel.
@@ -186,11 +194,71 @@ final class ReviewViewModel: ObservableObject {
 
     func addScreenshotAttachment(_ attachment: ScreenshotAttachment) {
         needsScreenCapturePermission = false
-        screenshotAttachments.append(attachment)
+        screenshotAttachments = [attachment]
+        enterVisionMode(with: attachment)
     }
 
     func removeScreenshotAttachment(id: ScreenshotAttachment.ID) {
         screenshotAttachments.removeAll { $0.id == id }
+        if visionImage?.id == id {
+            exitVisionMode()
+        }
+    }
+
+    func enterVisionMode(with attachment: ScreenshotAttachment) {
+        sessionKind = .vision
+        visionImage = attachment
+        visionResult = nil
+        revisedDraft = ""
+        result = nil
+        lastDurationMs = nil
+        lastModelName = nil
+        focusedField = nil
+        Task { await runVisionInterpretation() }
+    }
+
+    func exitVisionMode() {
+        sessionKind = .text
+        visionImage = nil
+        visionResult = nil
+        isInterpretingVision = false
+        focusedField = .draft
+    }
+
+    func runVisionInterpretation() async {
+        guard let visionImage else { return }
+        errorMessage = nil
+        visionResult = nil
+        isInterpretingVision = true
+        let started = Date()
+        defer { isInterpretingVision = false }
+
+        do {
+            let result = try await visionProvider.interpret(
+                imageURL: visionImage.url,
+                instruction: visionInstruction,
+                language: outputLanguage
+            )
+            self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
+            self.lastModelName = "OpenAI · \(result.modelID ?? AppSettings.selectedVisionModelID())"
+            self.visionResult = result
+        } catch {
+            self.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    func copyVisionResult() {
+        guard let visionResult else { return }
+        do {
+            try ClipboardDeployer().deploy(visionResult.copyText)
+            didDeploy = true
+            Task {
+                try? await Task.sleep(nanoseconds: 1_800_000_000)
+                self.didDeploy = false
+            }
+        } catch {
+            errorMessage = "コピーに失敗しました: \(error.localizedDescription)"
+        }
     }
 
     /// True when a review exists but the draft has changed since it was made.

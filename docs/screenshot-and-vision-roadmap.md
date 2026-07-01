@@ -245,24 +245,40 @@ This phase should be tested explicitly in:
 
 This is the point where screenshot becomes product core.
 
+Status: local first pass implemented
+
 ### Goal
 
-Capture the current screen or region, then ask a vision-capable model to explain
-what is on screen in the same two-pane Bomb Squad interface.
+After a screenshot is captured, switch the current panel session into vision
+mode. Any text currently in the original draft is ignored for that session. The
+left pane becomes the captured screen image, and the right pane becomes the
+model's explanation of that image.
+
+This is no longer "screenshot attachment." It is "screen as input."
 
 ### User Flow
 
-1. User invokes a vision command.
-2. The app captures either the full visible screen or a selected region.
-3. Left pane shows the captured image.
-4. Right pane shows a structured explanation:
+1. User opens the panel, or is already in the panel with text present.
+2. User clicks the vision/screenshot button.
+3. The app checks screen recording permission before entering capture.
+4. The panel hides and macOS region capture starts.
+5. User captures a region.
+6. The panel returns in vision mode.
+7. Left pane shows the captured screenshot instead of the text editor.
+8. Right pane shows a loading state, then a structured explanation:
    - what is visible
    - important text
    - likely user-relevant meaning
    - possible next actions
    - uncertainty or missing context
-5. User can type or dictate a follow-up question, such as "この部分は何？"
-6. The answer updates using the image plus the follow-up instruction.
+9. User can type or dictate a follow-up question, such as "この部分は何？"
+10. The answer updates using the image plus the follow-up instruction.
+
+Open question:
+
+- whether the previous compose draft should be restored if the user leaves
+  vision mode. Product direction says ignore it during vision mode; preserving
+  it in memory for a back action may still be useful.
 
 ### Open Gesture Decision
 
@@ -279,6 +295,26 @@ Recommendation:
 
 Start with an explicit button. Add a global gesture only after the behavior is
 clearly useful and the accidental-trigger risk is understood.
+
+### Minimal UI Behavior
+
+Left pane in vision mode:
+
+- title changes from `原文` to `画面`
+- large screenshot preview replaces `SendableTextEditor`
+- controls show image filename, pixel size, and a remove/retake action
+- existing draft text is hidden and does not affect review state
+
+Right pane in vision mode:
+
+- title changes from `レビュー結果` / `読み取り結果` to `画面の説明`
+- while loading, show `画面を読み取っています...`
+- after success, show an editable explanation field only if we want the user to
+  copy or refine it; otherwise a read-only structured result is enough
+- primary action is `コピー`, not `送信`
+
+Do not auto-deploy vision output into the original app in the first version.
+Vision output is understanding support, so clipboard copy is the safe exit.
 
 ### Interface Model
 
@@ -301,6 +337,162 @@ but the product model should eventually distinguish:
 - output intent: send, understand, summarize, explain, reply
 
 This matters for API design and usage metering.
+
+The current code has `ReviewViewModel.mode` as an immutable `ReviewMode`. For a
+small first implementation, avoid forcing every text path through a large
+refactor. Add a separate mutable session state:
+
+```swift
+enum InputSessionKind {
+    case text
+    case vision
+}
+```
+
+Then add vision-specific state to `ReviewViewModel`:
+
+```swift
+@Published var sessionKind: InputSessionKind = .text
+@Published var visionImage: ScreenshotAttachment?
+@Published var visionResult: VisionInterpretationResult?
+@Published var isInterpretingVision = false
+@Published var visionInstruction = ""
+```
+
+`ReviewMode.compose` / `.transform` can continue to control existing text
+prompting and deploy behavior. `sessionKind == .vision` controls the visual
+layout and the new vision request path.
+
+### Vision Result Shape
+
+Use a structured result instead of a single prose blob:
+
+```swift
+struct VisionInterpretationResult: Codable, Hashable {
+    let summary: String
+    let visibleText: [String]
+    let interpretation: String
+    let suggestedActions: [String]
+    let uncertainties: [String]
+}
+```
+
+This keeps the UI stable and allows later features:
+
+- copy only the summary
+- turn suggested actions into reply drafts
+- ask follow-up questions against the same screenshot
+- meter and log vision operations separately from text reviews
+
+### Prompt Direction
+
+The first vision prompt should be practical, not poetic:
+
+```text
+You are an assistant that helps the user understand the current screen.
+Describe only what can be inferred from the screenshot.
+Extract important visible text.
+Explain the likely meaning for a non-expert user.
+List concrete next actions.
+Call out uncertainty instead of guessing.
+Return structured JSON in Japanese.
+```
+
+For communication contexts such as Slack or Gmail, the model should focus on:
+
+- who is asking for what
+- deadlines or action items
+- emotionally loaded wording
+- hidden assumptions
+- what the user likely needs to do next
+
+For app or system UI contexts, the model should focus on:
+
+- current state
+- error messages
+- blocked controls or missing permissions
+- next safe steps
+
+### OpenAI VLM Selection
+
+Use the OpenAI Responses API for the first real implementation. The current
+OpenAI docs describe Responses as the primary interface that accepts text and
+image inputs and returns text or JSON output. The image/vision guide also points
+to Responses API for image analysis use cases.
+
+Recommended default for this product:
+
+- default: `gpt-5.4-mini`
+- high-quality/manual option: `gpt-5.5`
+- low-cost experiment: `gpt-5.4-nano`
+
+Rationale:
+
+- Screen interpretation is an always-on utility path, so latency and cost matter
+  more than maximum reasoning for the default.
+- The app needs enough visual/text reasoning to read UI, messages, tables, and
+  errors. A small current model should be tested first before paying for the
+  flagship model on every screenshot.
+- Use the flagship model for complex screenshots: dense tables, code, design
+  critique, multi-panel dashboards, or ambiguous UI state.
+- Avoid GPT Image models for this path. They are for image generation/editing,
+  not screen understanding output.
+
+Evaluation set before locking the default:
+
+- Slack message with tone/context
+- Gmail thread with visible reply composer
+- macOS permission dialog
+- web app error state
+- table/chart screenshot
+- mixed Japanese/English UI
+- dense design or Figma-like screen
+
+Acceptance threshold for the default model:
+
+- identifies the main visible app/context
+- extracts important on-screen text accurately enough to act
+- distinguishes facts from guesses
+- gives useful next actions
+- returns within the interaction budget for a transient panel
+
+### Implementation Steps
+
+1. Convert screenshot success into vision mode:
+   - set `sessionKind = .vision`
+   - set `visionImage = attachment`
+   - ignore current `draft` for the active session
+   - trigger `runVisionInterpretation()`
+2. Update left pane:
+   - render screenshot preview when `sessionKind == .vision`
+   - hide text character count and text editor
+   - show retake/remove controls
+3. Update right pane:
+   - render loading/empty/result states for vision
+   - copy result to clipboard as the first exit path
+4. Add `VisionProvider`:
+   - `func interpret(imageURL: URL, instruction: String?, language: OutputLanguage) async throws -> VisionInterpretationResult`
+5. Add `OpenAIVisionClient`:
+   - encode PNG as a data URL for the first version
+   - call Responses API
+   - request structured JSON
+6. Add a lightweight model selector:
+   - default to the chosen OpenAI vision model
+   - keep it independent from the existing text review model until usage data
+     says they should be unified
+7. Add server gateway support after the local proof:
+   - route through `/api/ai/vision`
+   - meter operation as `vision_interpret`
+   - avoid storing screenshots by default
+
+Current local checkpoint:
+
+- screenshot success switches the current panel to vision mode
+- the left pane shows the captured screenshot instead of the text editor
+- the right pane calls OpenAI Responses API and shows a structured explanation
+- result copy uses the clipboard only; it does not write back to the source app
+- default vision model is `gpt-5.4-mini`, with `gpt-4.1-mini` fallback for
+  accounts or environments where the newer model is unavailable
 
 ## Phase 4: API and Data Model Extension
 

@@ -96,11 +96,19 @@ struct ReviewModel: Identifiable, Hashable {
 /// Lightweight app-wide settings backed by UserDefaults.
 enum AppSettings {
     static let selectedModelKey = "selectedModelID"
+    static let selectedVisionModelKey = "selectedVisionModelID"
     static let isHistoryEnabledKey = "isHistoryEnabled"
     static let localHistoryLimit = 100
+    static let defaultVisionModelID = "gpt-5.4-mini"
 
     static func selectedModel() -> ReviewModel {
         ReviewModel.find(id: UserDefaults.standard.string(forKey: selectedModelKey))
+    }
+
+    static func selectedVisionModelID() -> String {
+        let stored = UserDefaults.standard.string(forKey: selectedVisionModelKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stored?.isEmpty == false ? stored! : defaultVisionModelID
     }
 
     static func isHistoryEnabled() -> Bool {

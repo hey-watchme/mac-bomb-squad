@@ -24,27 +24,34 @@ struct StagingEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("原文", systemImage: "doc.plaintext")
+                Label(viewModel.sessionKind == .vision ? "画面" : "原文",
+                      systemImage: viewModel.sessionKind == .vision ? "rectangle.on.rectangle" : "doc.plaintext")
                     .font(.headline)
                 Spacer()
-                Text("\(viewModel.draft.count) 文字")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if viewModel.sessionKind == .text {
+                    Text("\(viewModel.draft.count) 文字")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            // Enter sends the original text as-is (after the IME confirms any
-            // in-progress conversion); Shift+Enter inserts a newline.
-            SendableTextEditor(
-                text: $viewModel.draft,
-                focusedField: $focusedField,
-                field: .draft,
-                onSend: { viewModel.deployDraft() },
-                onEscape: { NotificationCenter.default.post(name: .closePanel, object: nil) }
-            )
-                .padding(8)
-                .background(EditorFocusBackground(isFocused: isFocused))
+            if viewModel.sessionKind == .vision, let attachment = viewModel.visionImage {
+                VisionSourceView(attachment: attachment, viewModel: viewModel)
+            } else {
+                // Enter sends the original text as-is (after the IME confirms any
+                // in-progress conversion); Shift+Enter inserts a newline.
+                SendableTextEditor(
+                    text: $viewModel.draft,
+                    focusedField: $focusedField,
+                    field: .draft,
+                    onSend: { viewModel.deployDraft() },
+                    onEscape: { NotificationCenter.default.post(name: .closePanel, object: nil) }
+                )
+                    .padding(8)
+                    .background(EditorFocusBackground(isFocused: isFocused))
+            }
 
-            if !viewModel.screenshotAttachments.isEmpty {
+            if viewModel.sessionKind == .text, !viewModel.screenshotAttachments.isEmpty {
                 ScreenshotAttachmentStrip(viewModel: viewModel)
             }
 
@@ -117,6 +124,62 @@ struct StagingEditorView: View {
             }
         }
         .padding()
+    }
+}
+
+private struct VisionSourceView: View {
+    let attachment: ScreenshotAttachment
+    @ObservedObject var viewModel: ReviewViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            preview
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .background(EditorFocusBackground(isFocused: false))
+
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(attachment.fileName)
+                        .font(.caption)
+                        .lineLimit(1)
+                    if let sizeLabel = attachment.sizeLabel {
+                        Text(sizeLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Button {
+                    NotificationCenter.default.post(name: .captureScreenshot, object: nil)
+                } label: {
+                    Label("撮り直す", systemImage: "camera.viewfinder")
+                }
+                Button {
+                    viewModel.removeScreenshotAttachment(id: attachment.id)
+                } label: {
+                    Label("テキストに戻る", systemImage: "text.cursor")
+                }
+            }
+            .controlSize(.small)
+        }
+    }
+
+    @ViewBuilder
+    private var preview: some View {
+        if let image = NSImage(contentsOf: attachment.url) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .padding(8)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.quaternary.opacity(0.4))
+                Label("スクリーンショットを読み込めません", systemImage: "photo")
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
