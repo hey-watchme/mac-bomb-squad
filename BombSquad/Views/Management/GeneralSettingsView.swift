@@ -7,6 +7,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppSettings.selectedModelKey) private var selectedModelID = ReviewModel.defaultModel.id
     @AppStorage(AppSettings.isHistoryEnabledKey) private var isHistoryEnabled = true
     @AppStorage(AppSettings.isContextCaptureEnabledKey) private var isContextCaptureEnabled = true
+    @AppStorage(AppSettings.isMemoryEnabledKey) private var isMemoryEnabled = true
 
     let config: BombSquadConfig.Snapshot
     @State private var openAIKey: String = ""
@@ -60,6 +61,14 @@ struct GeneralSettingsView: View {
             Section("周辺コンテクスト") {
                 Toggle("呼び出し時に画面の文脈を読み取る", isOn: $isContextCaptureEnabled)
                 Text("パネルを呼び出した瞬間に、前面アプリと周辺の会話テキストを読み取ってレビューの参考にします。読み取った内容はパネル上のチップから確認・除外でき、保存はされません。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("メモリ") {
+                Toggle("スタイルプロファイルを反映・学習する", isOn: $isMemoryEnabled)
+                Text("レビュー時にあなたの文体プロファイルと相手ごとのメモを参照し、送信のたびに少しずつ学習します。内容は「メモリ」タブでいつでも確認・編集・削除できます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

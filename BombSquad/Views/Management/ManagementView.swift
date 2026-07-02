@@ -5,8 +5,9 @@ import SwiftUI
 /// lightweight capture/review panel: account, settings, history, and billing.
 enum ManagementSection: String, CaseIterable, Identifiable {
     case account
-    case settings
+    case memory
     case history
+    case settings
     case pricing
 
     var id: String { rawValue }
@@ -14,6 +15,7 @@ enum ManagementSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .account: return "アカウント"
+        case .memory: return "メモリ"
         case .settings: return "設定"
         case .history: return "履歴"
         case .pricing: return "料金プラン"
@@ -23,6 +25,7 @@ enum ManagementSection: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .account: return "person.crop.circle"
+        case .memory: return "brain.head.profile"
         case .settings: return "gearshape"
         case .history: return "clock.arrow.circlepath"
         case .pricing: return "creditcard"
@@ -75,6 +78,8 @@ struct ManagementView: View {
         switch navigator.section {
         case .account:
             AccountView(viewModel: authViewModel, config: config)
+        case .memory:
+            MemoryView()
         case .settings:
             GeneralSettingsView(config: config)
         case .history:

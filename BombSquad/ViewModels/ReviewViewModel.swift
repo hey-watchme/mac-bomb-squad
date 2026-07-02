@@ -134,6 +134,28 @@ final class ReviewViewModel: ObservableObject {
         return situationalContext
     }
 
+    /// Memory cards for the next review: the persona card plus the
+    /// relationship card whose subject appears in the situational context.
+    private func resolveMemory(context: SituationalContext?) async -> MemoryInjection? {
+        guard AppSettings.isMemoryEnabled() else { return nil }
+        let persona = try? await MemoryStore.shared.personaCard()
+
+        var relationship: MemoryCard?
+        if let context {
+            let haystack = [context.windowTitle, context.conversationExcerpt]
+                .compactMap { $0 }
+                .joined(separator: "\n")
+            relationship = try? await MemoryStore.shared.matchRelationship(inText: haystack)
+        }
+
+        let injection = MemoryInjection(
+            personaMD: persona?.contentMD,
+            relationshipSubject: relationship?.subject,
+            relationshipMD: relationship?.contentMD
+        )
+        return injection.isEmpty ? nil : injection
+    }
+
     func runReview() async {
         errorMessage = nil
         if result != nil {
@@ -147,9 +169,10 @@ final class ReviewViewModel: ObservableObject {
         let input = draft
         let language = outputLanguage
         let context = await resolveContext()
+        let memory = await resolveMemory(context: context)
         do {
             let result = try await currentProvider().review(
-                draft: input, mode: mode, language: language, context: context
+                draft: input, mode: mode, language: language, context: context, memory: memory
             )
             self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
             self.lastModelName = model.displayName
@@ -333,6 +356,23 @@ final class ReviewViewModel: ObservableObject {
             outputLanguage: outputLanguage.displayName,
             action: historyAction
         ))
+        scheduleDistillation(finalText: finalText)
+    }
+
+    /// The gap between the AI suggestion and what the user actually sent is
+    /// the best teacher for the persona/relationship cards. Observed off the
+    /// hot path after a successful compose deploy; failures never surface.
+    private func scheduleDistillation(finalText: String) {
+        guard didDeploy, mode == .compose, AppSettings.isMemoryEnabled() else { return }
+        guard let result else { return }
+        let original = draft
+        let suggestion = result.revisedText
+        let context = situationalContext
+        Task.detached(priority: .background) {
+            await MemoryDistiller.distillAfterDeploy(
+                original: original, suggestion: suggestion, final: finalText, context: context
+            )
+        }
     }
 
     /// Deploy text to the live destination (clipboard, or paste into the

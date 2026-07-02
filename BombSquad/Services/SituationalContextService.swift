@@ -136,6 +136,11 @@ enum SituationalContextService {
     ) -> String? {
         var visited = 0
         var pieces: [String] = []
+        // Global (not just adjacent) dedupe: list UIs repeat the same label
+        // dozens of times ("連絡先候補" / "オフライン" per contact row in Gmail),
+        // drowning the conversation. Dropping repeated identical strings loses
+        // little for context purposes and cuts that noise generically.
+        var seen = Set<String>()
         var collectedChars = 0
         var stack: [AXUIElement] = [root]
 
@@ -152,7 +157,7 @@ enum SituationalContextService {
             if subrole != "AXSecureTextField", !isFocusedElement {
                 if let value = copyString(element, kAXValueAttribute) {
                     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty, trimmed != pieces.last {
+                    if !trimmed.isEmpty, seen.insert(trimmed).inserted {
                         pieces.append(trimmed)
                         collectedChars += trimmed.count
                     }

@@ -17,7 +17,8 @@ struct ClaudeClient: ReviewProvider {
         draft: String,
         mode: ReviewMode,
         language: OutputLanguage,
-        context: SituationalContext?
+        context: SituationalContext?,
+        memory: MemoryInjection?
     ) async throws -> ReviewResult {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ProviderError.emptyDraft }
@@ -31,7 +32,9 @@ struct ClaudeClient: ReviewProvider {
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(
-            withJSONObject: requestBody(draft: trimmed, mode: mode, language: language, context: context)
+            withJSONObject: requestBody(
+                draft: trimmed, mode: mode, language: language, context: context, memory: memory
+            )
         )
 
         let (data, response): (Data, URLResponse)
@@ -58,9 +61,11 @@ struct ClaudeClient: ReviewProvider {
         draft: String,
         mode: ReviewMode,
         language: OutputLanguage,
-        context: SituationalContext?
+        context: SituationalContext?,
+        memory: MemoryInjection?
     ) -> [String: Any] {
-        let system = mode == .transform ? ReviewPrompt.transformSystem : ReviewPrompt.system
+        let base = mode == .transform ? ReviewPrompt.transformSystem : ReviewPrompt.system
+        let system = ReviewPrompt.enrichedSystem(base: base, mode: mode, memory: memory)
         let task = mode == .transform
             ? "次の受信メッセージを読みやすく整理してください:\n\n\(draft)"
             : "次の下書きをレビューしてください:\n\n\(draft)"

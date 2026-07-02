@@ -99,6 +99,16 @@ private struct HistoryRow: View {
 
             textBlock(title: entry.action == .sent ? "送信文" : "コピー文", text: entry.finalText)
 
+            // The before→after gap is the product's core artifact; show it on
+            // demand for entries that went through a review.
+            if entry.usedReview, entry.sourceText != entry.finalText {
+                DisclosureGroup("変更点（原文 → 送信文）") {
+                    DiffView(original: entry.sourceText, revised: entry.finalText)
+                        .frame(maxHeight: 180)
+                }
+                .font(.caption)
+            }
+
             HStack(spacing: 8) {
                 Text(entry.usedReview ? (entry.modelName ?? "レビューあり") : "レビューなし")
                 if let outputLanguage = entry.outputLanguage {

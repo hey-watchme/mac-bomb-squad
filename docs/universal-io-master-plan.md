@@ -264,6 +264,10 @@ Slack で会話本文、VS Code で開いているファイル内容の取得を
 
 ### M2: Persona / Relationship メモリとマイページ（L2・L3）
 
+ステータス: 実装中（`feature/universal-io-m2`）。全スコープ実装済み・実機確認待ち。
+メモリ生成・蒸留の LLM 呼び出しは暫定で Groq `gpt-oss-120b` 直叩き（`MemoryDistiller`）。
+M3 の Gateway 移行時にサーバー側へ移す。
+
 **目的**: 人格的一貫性の実体を作り、「使うほど良くなる」と「初回から良い」を両立する。
 メモリページを製品の顔にする。
 

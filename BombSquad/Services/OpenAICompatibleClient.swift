@@ -28,7 +28,8 @@ struct OpenAICompatibleClient: ReviewProvider {
         draft: String,
         mode: ReviewMode,
         language: OutputLanguage,
-        context: SituationalContext?
+        context: SituationalContext?,
+        memory: MemoryInjection?
     ) async throws -> ReviewResult {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ProviderError.emptyDraft }
@@ -41,7 +42,9 @@ struct OpenAICompatibleClient: ReviewProvider {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(
-            withJSONObject: requestBody(draft: trimmed, mode: mode, language: language, context: context)
+            withJSONObject: requestBody(
+                draft: trimmed, mode: mode, language: language, context: context, memory: memory
+            )
         )
 
         let (data, response): (Data, URLResponse)
@@ -68,7 +71,8 @@ struct OpenAICompatibleClient: ReviewProvider {
         draft: String,
         mode: ReviewMode,
         language: OutputLanguage,
-        context: SituationalContext?
+        context: SituationalContext?,
+        memory: MemoryInjection?
     ) -> [String: Any] {
         let task = mode == .transform
             ? "次の受信メッセージを読みやすく整理してください:\n\n\(draft)"
@@ -100,7 +104,8 @@ struct OpenAICompatibleClient: ReviewProvider {
             body["reasoning_effort"] = reasoningEffort
         }
 
-        let system = mode == .transform ? ReviewPrompt.transformSystem : ReviewPrompt.system
+        let base = mode == .transform ? ReviewPrompt.transformSystem : ReviewPrompt.system
+        let system = ReviewPrompt.enrichedSystem(base: base, mode: mode, memory: memory)
         body["messages"] = [
             ["role": "system", "content": system],
             ["role": "user", "content": userContent],

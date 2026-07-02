@@ -99,6 +99,7 @@ enum AppSettings {
     static let selectedVisionModelKey = "selectedVisionModelID"
     static let isHistoryEnabledKey = "isHistoryEnabled"
     static let isContextCaptureEnabledKey = "isContextCaptureEnabled"
+    static let isMemoryEnabledKey = "isMemoryEnabled"
     static let localHistoryLimit = 100
     static let defaultVisionModelID = "gpt-5.4-mini"
 
@@ -126,5 +127,14 @@ enum AppSettings {
             return true
         }
         return UserDefaults.standard.bool(forKey: isContextCaptureEnabledKey)
+    }
+
+    /// L2/L3 memory (persona/relationship cards): injection into reviews and
+    /// post-deploy distillation. Default ON; cards remain editable either way.
+    static func isMemoryEnabled() -> Bool {
+        if UserDefaults.standard.object(forKey: isMemoryEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: isMemoryEnabledKey)
     }
 }
