@@ -151,6 +151,35 @@ This is the first route. It covers both current macOS modes:
 }
 ```
 
+### Optional Input Extensions (added 2026-07-02, Universal I/O M3)
+
+`input` accepts two optional objects. Both are reference material for the
+prompt; the gateway never persists them.
+
+```json
+{
+  "input": {
+    "draft": "...",
+    "context": {
+      "app_name": "Slack",
+      "window_title": "Threads - Wealth Park",
+      "conversation_excerpt": "（周辺会話の抜粋、最大2500文字目安）"
+    },
+    "memory": {
+      "persona_md": "（ユーザーのスタイルプロファイル Markdown）",
+      "relationship_subject": "Yumi Mukai",
+      "relationship_md": "（相手カード Markdown）"
+    }
+  }
+}
+```
+
+- `input.context`: L1 situational context captured at panel summon time.
+- `input.memory`: persona/relationship cards. These live client-side until the
+  memory sync API ships; clients send the already-selected cards per request.
+- The gateway records only boolean flags (`has_context`, `has_memory`) in
+  usage metadata, never the content.
+
 ### Request Fields
 
 - `request_id`: required string

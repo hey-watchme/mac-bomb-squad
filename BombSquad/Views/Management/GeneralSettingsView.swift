@@ -30,6 +30,12 @@ struct GeneralSettingsView: View {
                 Text(selectedModel.hint)
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if config.hasBackendConfig {
+                    Text("クラウド接続（I//O Cloud）が有効なため、通常のレビューはサーバー側でモデルが選択されます。このモデル選択と API キーは、クラウド未接続時の開発者向けフォールバックにのみ使われます。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Section("Groq API") {

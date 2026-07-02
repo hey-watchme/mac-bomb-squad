@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "stdio",
+      "command": "/Users/kaya.matsumoto/.codex/bin/start-supabase-mcp-bombsquad.sh"
+    }
+  }
+}

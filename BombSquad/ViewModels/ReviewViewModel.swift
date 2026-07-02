@@ -94,9 +94,13 @@ final class ReviewViewModel: ObservableObject {
         self.mode = mode
     }
 
-    /// Resolve the engine to use for the next review, based on the selected model.
+    /// Resolve the engine to use for the next review. The gateway is the
+    /// production path (server-owned keys, prompts, and metering); the BYOK
+    /// direct clients remain as a developer fallback when no gateway URL is
+    /// configured or the user is signed out.
     private func currentProvider() -> ReviewProvider {
         if let overrideProvider { return overrideProvider }
+        if let gateway = GatewayReviewClient.make() { return gateway }
         let model = AppSettings.selectedModel()
         switch model.vendor {
         case .anthropic: return ClaudeClient(model: model.apiModelID)
@@ -170,12 +174,13 @@ final class ReviewViewModel: ObservableObject {
         let language = outputLanguage
         let context = await resolveContext()
         let memory = await resolveMemory(context: context)
+        let provider = currentProvider()
         do {
-            let result = try await currentProvider().review(
+            let result = try await provider.review(
                 draft: input, mode: mode, language: language, context: context, memory: memory
             )
             self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
-            self.lastModelName = model.displayName
+            self.lastModelName = provider is GatewayReviewClient ? "I//O Cloud" : model.displayName
             self.result = result
             self.revisedDraft = result.revisedText
             self.reviewedDraft = input

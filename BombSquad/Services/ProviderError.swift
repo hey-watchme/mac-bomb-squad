@@ -8,11 +8,16 @@ enum ProviderError: LocalizedError {
     case noStructuredOutput
     case decoding(String)
     case emptyDraft
+    /// Gateway errors arrive with a user-facing message already resolved from
+    /// the API error contract; show it as-is.
+    case gateway(message: String)
 
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
             return "API キーが設定されていません。設定（Cmd+,）から登録してください。"
+        case let .gateway(message):
+            return message
         case let .http(status, body):
             if status == 401 { return "API キーが無効です（401）。設定を確認してください。" }
             if status == 429 { return "レート制限に達しました（429）。少し待って再試行してください。" }

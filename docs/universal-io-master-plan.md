@@ -214,6 +214,15 @@ Slack で会話本文、VS Code で開いているファイル内容の取得を
   M4 の Vision 連携＝画面キャプチャからの文脈取得）とまとめて再検討する。
 - ScreenCaptureKit + Vision フォールバックは未実装（同上、M4 と統合判断）。
 
+**既知の不具合（横断）**:
+- アプリ起動直後、右Shift 2回が数回反応しないことがある（2026-07-02 報告）。
+  候補: 旧コピー終了処理との競合 / `NSEvent.addGlobalMonitorForEvents` の登録直後の取りこぼし /
+  TCC の再評価。再現したらジェスチャ受信のログを仕込んで切り分ける。初回ユーザー体験に関わるため
+  M3-C（パネル UX 刷新）までに解消したい。
+- 受信モード（transform）は「呼び出し時に選択があった」だけで暗黙に入るため、意図せず入ると
+  「送信したのにコピーされる」ように見える（2026-07-02 報告 → 同日、モードバッジ・ボタン文言・
+  トースト文言で可視化対応済み。モード切替 UI は M3-C で検討）。
+
 **目的**: ステートレス脱却の第一歩。最小工数で体感品質を最大に変える。初回ユーザーでも効果が出る。
 
 **スコープ**:
@@ -330,13 +339,28 @@ M3 の Gateway 移行時にサーバー側へ移す。
 
 ### M3: Gateway 移行・課金・同期
 
+ステータス: M3-A 実装中（`feature/universal-io-m2` ブランチ上で継続）。
+**決定（2026-07-02、オーナー確認済み）**: Gateway は FastAPI ではなく
+**Next.js Route Handlers（`web/`、Vercel）**。既存の
+[auth-billing-infra-plan.md](auth-billing-infra-plan.md)・[api-contract.md](api-contract.md)・
+適用済み Supabase スキーマ（`bs_` テーブル群）に従う。段階分割で進める:
+
+- **M3-A（実装済み・検証待ち）**: `web/app/api/ai/review` Gateway（Supabase JWT 検証、
+  テナント解決、無料枠クォータ 50/月、Groq/OpenAI 呼び出し、`bs_usage_events` 記録）＋
+  macOS `GatewayReviewClient`（既定。BYOK 直叩きは Gateway 未設定時のフォールバック）。
+  context/memory はリクエストで受け取りプロンプトにのみ使用（保存しない、契約書参照）。
+- **M3-B（未着手）**: Stripe 課金（アカウント構造は着手時に整理）、クォータ UI、
+  Vision/ASR/メモリ蒸留の Gateway 移行、メモリ同期。
+- **M3-C（未着手）**: パネル UI 切り詰め（プルダウン撤去・ストリーミング）、Liquid Glass、
+  リブランド第 1 段（Bundle ID 変更）。
+
 **目的**: ビジネス成立の土台。API キーのクライアント撤去、メータリング、Stripe サブスク、
 デバイス間メモリ同期。**リブランドに伴う Bundle ID 変更もここで同時に行う**
 （Keychain / 権限再許可の痛みを 1 回で済ませる）。
 
 **スコープ**:
 
-1. **Gateway（FastAPI、`farm/` 配下または新規リポジトリ。既存 [auth-billing-infra-plan.md](auth-billing-infra-plan.md) と整合させて更新）**
+1. **Gateway（Next.js Route Handlers。既存 [auth-billing-infra-plan.md](auth-billing-infra-plan.md) と整合させて更新）**
    - エンドポイント（Pydantic スキーマ必須、[api-contract.md](api-contract.md) を正本として更新）:
      - `POST /v1/transform` — 送信レビュー／受信変換／Vision 解釈を統合した変換 API
        （`mode`, `input`, `situational_context`, `output_language`, ストリーミング=SSE）

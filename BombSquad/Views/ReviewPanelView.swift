@@ -48,7 +48,8 @@ struct ReviewPanelView: View {
         .padding()
         .overlay(alignment: .bottom) {
             if viewModel.didDeploy {
-                Label("クリップボードにコピーしました", systemImage: "checkmark.circle.fill")
+                Label(viewModel.mode == .transform ? "クリップボードにコピーしました" : "送信先へ入力しました",
+                      systemImage: "checkmark.circle.fill")
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(.green.opacity(0.9), in: Capsule())
                     .foregroundStyle(.white)
