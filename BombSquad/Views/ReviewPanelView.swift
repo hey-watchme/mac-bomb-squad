@@ -37,6 +37,8 @@ struct ReviewPanelView: View {
             }
         }
         .padding()
+        .animation(.easeInOut(duration: 0.18), value: viewModel.result != nil)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isLoading)
         .overlay(alignment: .bottom) {
             if viewModel.didDeploy {
                 Label(viewModel.mode == .transform ? "クリップボードにコピーしました" : "送信先へ入力しました",

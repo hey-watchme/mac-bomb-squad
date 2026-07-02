@@ -80,6 +80,7 @@ struct StagingEditorView: View {
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .help("使い方を表示します")
+                .accessibilityLabel("使い方")
                 .popover(isPresented: $showHelp, arrowEdge: .bottom) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("使い方").font(.headline)
@@ -104,6 +105,7 @@ struct StagingEditorView: View {
                 .buttonStyle(.borderless)
                 .disabled(viewModel.isCapturingScreenshot)
                 .help("ビジョン入力としてスクリーンショットを撮影します")
+                .accessibilityLabel("画面を撮影して読み取る")
 
                 if viewModel.isRecording {
                     Image(systemName: "mic.fill").foregroundStyle(.red)
@@ -200,6 +202,7 @@ private struct SituationalContextChip: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("このセッションでは周辺コンテクストを使いません")
+            .accessibilityLabel("周辺コンテクストを除外")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)

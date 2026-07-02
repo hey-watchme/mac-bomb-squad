@@ -36,6 +36,7 @@ struct RootPanelView: View {
                 LoginRequiredView(viewModel: authViewModel, config: config)
             }
         }
+        .panelChrome()
         .onChange(of: authViewModel.hasSession) { _, isLoggedIn in
             guard isLoggedIn else { return }
             guard reviewViewModel.mode == .transform else { return }

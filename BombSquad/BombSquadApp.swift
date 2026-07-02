@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Bomb Squad — a staging layer between you and the message you send.
+/// Universal I/O (I//O) — a semantic I/O layer between you and your apps.
 /// Runs as a menu-bar (accessory) app: no window at launch, no Dock icon.
 ///
 /// Two surfaces only:
@@ -16,7 +16,7 @@ struct BombSquadApp: App {
     @ObservedObject private var auth = AuthViewModel.shared
 
     var body: some Scene {
-        MenuBarExtra("Bomb Squad", systemImage: "text.bubble") {
+        MenuBarExtra {
             // At-a-glance running/account state.
             if auth.hasSession {
                 Text(auth.signedInEmail ?? "ログイン済み")
@@ -43,6 +43,10 @@ struct BombSquadApp: App {
             Divider()
 
             Button("終了") { NSApplication.shared.terminate(nil) }
+        } label: {
+            // Monochrome I//O glyph (template image; design principle 3.5).
+            Image(nsImage: MenuBarGlyph.image)
+                .accessibilityLabel("Universal I/O")
         }
     }
 

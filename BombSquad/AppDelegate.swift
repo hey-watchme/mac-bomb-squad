@@ -330,9 +330,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        let panel = NSPanel(
+        // Spotlight-style chrome: borderless transparent window; the SwiftUI
+        // glass shape (PanelChrome) is the visible panel.
+        let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: Self.textPanelSize.width, height: Self.textPanelSize.height),
-            styleMask: [.titled, .closable, .resizable],
+            styleMask: [.borderless],
             backing: .buffered, defer: false
         )
         panel.title = "Bomb Squad"
@@ -341,6 +343,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
         panel.contentViewController = NSHostingController(
             rootView: MainActor.assumeIsolated { RootPanelView(reviewViewModel: viewModel) }
         )
