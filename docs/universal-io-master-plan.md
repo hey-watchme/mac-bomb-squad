@@ -170,7 +170,8 @@ Android、Windows へ展開する。**ペルソナ・メモリ・課金はデバ
 
 ## 4. 現状コードベースの地図（実装者向け）
 
-リポジトリ: `git@github.com:hey-watchme/mac-bomb-squad.git`（ローカル: `~/projects/bomb-squad/app-mac`）
+リポジトリ: `git@github.com:universal-io/app-mac.git`（ローカル: `~/projects/bomb-squad/app-mac`。
+2026-07-02 に GitHub org を `hey-watchme/mac-bomb-squad` から `universal-io/app-mac` へ移行）
 ビルド: `xcodegen generate` → `xcodebuild -project BombSquad.xcodeproj -scheme BombSquad -configuration Debug build`
 コード内コメント・識別子は英語（CLAUDE.md 規約）。リネームは M5 まで行わず `BombSquad` 名前空間のまま実装する。
 
@@ -351,10 +352,15 @@ M3 の Gateway 移行時にサーバー側へ移す。
   context/memory はリクエストで受け取りプロンプトにのみ使用（保存しない、契約書参照）。
 - **M3-B（実装中、`feature/universal-io`）**: Stripe 課金（アカウント構造はオーナー整理待ちのため
   最後に回す）、クォータ UI、Vision/ASR/メモリ蒸留の Gateway 移行、メモリ同期。
-  進捗（2026-07-02）: Gateway 移行（ASR `/api/ai/transcribe`・蒸留 `/api/ai/memory/distill`・
-  Vision `/api/ai/vision`）とクォータ表示（マイページ、review レスポンスの quota を利用）を実装済み・
-  実機確認待ち。macOS 側は `GatewayAPI` に共通化し、BYOK 直叩きは従来どおりフォールバック。
+  macOS 側は `GatewayAPI` に共通化し、BYOK 直叩きは従来どおりフォールバック。
   ASR/Vision/蒸留にハードクォータは未設定（使用量記録のみ。上限は Stripe プラン導入時に設定）。
+  実機確認済み（2026-07-02、ローカル Gateway `npm run dev` + macOS アプリ）:
+  - ASR（`/api/ai/transcribe`）: 右Shift長押しの音声入力→文字起こし→レビューまで成功
+  - Vision（`/api/ai/vision`）: 空欄で右Shift2回→撮影→読み取り成功。マイページの利用量カウントも確認
+  - メモリ bootstrap（`/api/ai/memory/distill`）: プロファイル生成成功。生成ボタンは
+    貼り付けが50文字未満だと無効化される仕様だが、理由の表示が無く分かりにくかったため、
+    不足文字数のヒント表示を追加（[`MemoryView.swift`](../BombSquad/Views/Management/MemoryView.swift)）
+  - メモリ post-deploy distillation（送信後の自動学習）は未確認（別途確認予定）
   残り: メモリ同期（`bs_memory_cards` + 同期 API）→ Stripe。
 - **M3-C（未着手）**: パネル UI 切り詰め（プルダウン撤去・ストリーミング）、Liquid Glass、
   リブランド第 1 段（Bundle ID 変更）。

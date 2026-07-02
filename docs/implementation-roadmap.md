@@ -9,7 +9,7 @@ updated whenever a phase starts, finishes, or changes direction.
 
 ## Current Checkpoint
 
-- Repository: `git@github.com:hey-watchme/mac-bomb-squad.git`
+- Repository: `git@github.com:universal-io/app-mac.git`
 - Branch: `main`
 - Last pushed commit: `72ea035 Keep auth panel open during login`
 - App target: `BombSquad`

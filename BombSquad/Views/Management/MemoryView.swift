@@ -100,6 +100,9 @@ struct MemoryView: View {
                 .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
 
             HStack {
+                if let hint = bootstrapHint {
+                    Text(hint).font(.caption).foregroundStyle(.secondary)
+                }
                 Spacer()
                 if viewModel.isGenerating {
                     ProgressView().controlSize(.small)
@@ -109,11 +112,27 @@ struct MemoryView: View {
                     Task { await viewModel.generatePersona() }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.bootstrapSamples.trimmingCharacters(in: .whitespacesAndNewlines).count < 50
-                          || viewModel.isGenerating)
+                .disabled(!isBootstrapReady || viewModel.isGenerating)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private static let bootstrapMinimumLength = 50
+
+    private var isBootstrapReady: Bool {
+        viewModel.bootstrapSamples.trimmingCharacters(in: .whitespacesAndNewlines).count
+            >= Self.bootstrapMinimumLength
+    }
+
+    /// Explains why the button is disabled — otherwise it silently refuses
+    /// short pastes with no feedback.
+    private var bootstrapHint: String? {
+        guard !viewModel.isGenerating else { return nil }
+        let count = viewModel.bootstrapSamples.trimmingCharacters(in: .whitespacesAndNewlines).count
+        guard count < Self.bootstrapMinimumLength else { return nil }
+        let remaining = Self.bootstrapMinimumLength - count
+        return "あと \(remaining) 文字以上入力してください（過去のメッセージを3〜5通貼り付けると生成できます）"
     }
 
     // MARK: - Relationships
