@@ -36,6 +36,9 @@ final class ReviewViewModel: ObservableObject {
     @Published var result: ReviewResult?
     /// Adopted/edited revision that will actually be deployed.
     @Published var revisedDraft: String = ""
+    /// Revised text accumulating token by token during a streaming review;
+    /// nil when no stream is in flight. Drives the live preview in the panel.
+    @Published private(set) var streamingRevision: String?
     @Published var isLoading = false
     @Published var errorMessage: String?
     /// Wall-clock latency of the last successful review, in milliseconds.
@@ -177,16 +180,42 @@ final class ReviewViewModel: ObservableObject {
         isLoading = true
         let model = AppSettings.selectedModel()
         let started = Date()
-        defer { isLoading = false }
+        defer {
+            isLoading = false
+            streamingRevision = nil
+        }
         let input = draft
         let language = outputLanguage
         let context = await resolveContext()
         let memory = await resolveMemory(context: context)
         let provider = currentProvider()
         do {
-            let result = try await provider.review(
-                draft: input, mode: mode, language: language, context: context, memory: memory
-            )
+            let result: ReviewResult
+            if let gateway = provider as? GatewayReviewClient {
+                // Streaming path: revised_text flows into the live preview
+                // token by token, then the final event carries the full result.
+                streamingRevision = ""
+                var finalResult: ReviewResult?
+                let stream = try await gateway.reviewStream(
+                    draft: input, mode: mode, language: language, context: context, memory: memory
+                )
+                for try await event in stream {
+                    switch event {
+                    case .delta(let text):
+                        streamingRevision = (streamingRevision ?? "") + text
+                    case .result(let parsed):
+                        finalResult = parsed
+                    }
+                }
+                guard let finalResult else {
+                    throw ProviderError.decoding("stream ended without a result")
+                }
+                result = finalResult
+            } else {
+                result = try await provider.review(
+                    draft: input, mode: mode, language: language, context: context, memory: memory
+                )
+            }
             self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
             self.lastModelName = provider is GatewayReviewClient ? "I//O Cloud" : model.displayName
             self.result = result

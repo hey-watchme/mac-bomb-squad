@@ -28,6 +28,8 @@ struct ReviewPanelView: View {
 
             if let result = viewModel.result {
                 resultBody(result)
+            } else if let streaming = viewModel.streamingRevision, !streaming.isEmpty {
+                streamingBody(streaming)
             } else if viewModel.isLoading {
                 loadingState
             } else {
@@ -122,6 +124,29 @@ struct ReviewPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxHeight: 300)
+    }
+
+    /// Live preview of the revised text while it streams from the gateway.
+    /// Read-only until the final event lands and the editable editor takes over.
+    private func streamingBody(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView {
+                Text(text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(13)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(EditorFocusBackground(isFocused: false))
+
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("生成中…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
     }
 
     /// While the (auto-)review runs, fill the result field with a spinner so the

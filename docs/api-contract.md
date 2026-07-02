@@ -185,10 +185,26 @@ prompt; the gateway never persists them.
 - The gateway records only boolean flags (`has_context`, `has_memory`) in
   usage metadata, never the content.
 
+### Streaming (added 2026-07-02, Universal I/O M3-C)
+
+Set `"stream": true` at the top level of the request body to receive the
+response as Server-Sent Events (`text/event-stream`):
+
+- `event: delta` — `{"text": "..."}`, increments of `revised_text` as the
+  model produces them (the prompt orders `revised_text` first so the
+  deliverable streams immediately)
+- `event: result` — the same JSON as the non-streaming success response
+  (including `quota`); always the last event on success
+- `event: error` — the same JSON as the error contract (auth/quota errors
+  before the stream starts still return plain JSON status responses)
+
+Usage is recorded exactly once per stream, after the provider stream ends.
+
 ### Request Fields
 
 - `request_id`: required string
 - `operation`: required string, must be `review` in v1
+- `stream`: optional boolean (SSE response; see Streaming above)
 - `mode`: required string, `compose` or `transform`
 - `input.draft`: required string
 - `preferences.output_language`: required string, `japanese` or `english`
