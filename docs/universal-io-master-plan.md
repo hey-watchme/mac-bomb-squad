@@ -362,8 +362,26 @@ M3 の Gateway 移行時にサーバー側へ移す。
     不足文字数のヒント表示を追加（[`MemoryView.swift`](../BombSquad/Views/Management/MemoryView.swift)）
   - メモリ post-deploy distillation（送信後の自動学習）は未確認（別途確認予定）
   残り: メモリ同期（`bs_memory_cards` + 同期 API）→ Stripe。
-- **M3-C（未着手）**: パネル UI 切り詰め（プルダウン撤去・ストリーミング）、Liquid Glass、
-  リブランド第 1 段（Bundle ID 変更）。
+- **M3-C（実装中、`feature/universal-io`、2026-07-02 着手）**: パネル UI 刷新。
+  デザイン原則 3.5 を全面適用する。フェーズ分割:
+  - **C1 情報設計**: パネルを Spotlight/Raycast 型の縦 1 カラム（1 入力欄＋結果、
+    空 → 原文 → 結果の 3 状態）に再構成。出力言語プルダウンをパネルから撤去し
+    設定へ移動＋UserDefaults 永続化（「セッションごとに日本語へ戻る」既知課題も解消）。
+    diff を結果表示の中心に昇格。右Shift 1回のフォーカス切替は上下（原文↔結果）として維持。
+  - **C2 ストリーミング**: Gateway `/api/ai/review` に SSE を追加（`stream: true`）。
+    revised_text の増分を `delta` イベント、最後に `result`（全体 JSON + quota）。
+    macOS 側は `GatewayReviewClient` にストリーミング経路、結果エディタへトークン単位で反映。
+    BYOK フォールバックは非ストリーミングのまま。
+  - **C3 Liquid Glass / ビジュアル**: パネルをタイトルバーレスの浮遊ガラスに。
+    `glassEffect`（macOS 26+、`#available` でフォールバック=現行 material。
+    デプロイターゲットは 14.0 のまま）。メニューバーをモノクロ I//O グリフに。
+    アニメーションはシステムスプリング/クロスフェードのみ。VoiceOver ラベル整備。
+  - **C4 リブランド第 1 段**: 表示名・ウィンドウタイトルを Universal I/O 系へ。
+    Bundle ID / URL scheme 変更は Supabase Redirect URL 設定と Keychain/権限の
+    再許可を伴うため、変更内容をオーナーに提示して確認後に実施。
+  - **C5 既知バグ**: アプリ起動直後に右Shift 2回が数回反応しない問題の切り分けと修正
+    （M1 の「既知の不具合」参照）。
+  実施順: C1 → C2 → C3 → C5 → C4。
 
 **目的**: ビジネス成立の土台。API キーのクライアント撤去、メータリング、Stripe サブスク、
 デバイス間メモリ同期。**リブランドに伴う Bundle ID 変更もここで同時に行う**

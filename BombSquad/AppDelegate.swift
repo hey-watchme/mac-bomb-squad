@@ -21,6 +21,10 @@ extension Notification.Name {
 /// On hotkey: capture the frontmost app (the paste target), then show a floating
 /// panel hosting the staging/review UI wired to a `PasteDeployer`.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Text mode is a single Spotlight-style column; vision needs two panes.
+    private static let textPanelSize = NSSize(width: 680, height: 660)
+    private static let visionPanelSize = NSSize(width: 960, height: 640)
+
     private var panel: NSPanel?
     /// The single on-demand management window (account/settings/history/pricing).
     /// Created lazily and reused; never always-on.
@@ -327,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 920, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: Self.textPanelSize.width, height: Self.textPanelSize.height),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
@@ -342,7 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         // Enforce a fixed size so SwiftUI can't resize the window out from under
         // the centering math; then center exactly.
-        panel.setContentSize(NSSize(width: 920, height: 620))
+        panel.setContentSize(Self.textPanelSize)
         centerOnActiveScreen(panel)
 
         self.panel = panel
@@ -396,6 +400,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 viewModel.isCapturingScreenshot = false
                 self.isCapturingScreenshot = false
                 guard self.panel === panel else { return }
+                // Vision shows two panes (screenshot / interpretation), so give
+                // the panel the wide layout before it reappears.
+                if viewModel.sessionKind == .vision,
+                   panel.frame.size.width < Self.visionPanelSize.width {
+                    panel.setContentSize(Self.visionPanelSize)
+                    self.centerOnActiveScreen(panel)
+                }
                 NSApp.activate(ignoringOtherApps: true)
                 panel.makeKeyAndOrderFront(nil)
             }

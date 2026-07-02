@@ -58,8 +58,9 @@ final class ReviewViewModel: ObservableObject {
     @Published var focusedField: FocusField?
     @Published private(set) var recentHistoryEntries: [HistoryEntry] = []
     @Published private(set) var isLoadingRecentHistory = false
-    /// Target language for the deliverable (`revisedDraft`). Default Japanese.
-    @Published var outputLanguage: OutputLanguage = .japanese
+    /// Target language for the deliverable (`revisedDraft`). Read from the
+    /// persisted setting at panel open; changed in settings, not the panel.
+    @Published var outputLanguage: OutputLanguage = AppSettings.outputLanguage()
     /// L1 situational context captured at summon time (shown as a chip).
     @Published private(set) var situationalContext: SituationalContext?
     /// True after the user dismissed the chip: no injection for this session.

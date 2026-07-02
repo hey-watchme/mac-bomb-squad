@@ -8,6 +8,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppSettings.isHistoryEnabledKey) private var isHistoryEnabled = true
     @AppStorage(AppSettings.isContextCaptureEnabledKey) private var isContextCaptureEnabled = true
     @AppStorage(AppSettings.isMemoryEnabledKey) private var isMemoryEnabled = true
+    @AppStorage(AppSettings.outputLanguageKey) private var outputLanguageID = OutputLanguage.japanese.rawValue
 
     let config: BombSquadConfig.Snapshot
     @State private var openAIKey: String = ""
@@ -21,6 +22,18 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
+            Section("出力言語") {
+                Picker("結果の言語", selection: $outputLanguageID) {
+                    ForEach(OutputLanguage.allCases) { lang in
+                        Text(lang.displayName).tag(lang.rawValue)
+                    }
+                }
+                Text("レビュー結果（送る文／読みやすくした文）の言語です。入力が何語でも結果はこの言語になります。次にパネルを開いた時から反映されます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("レビューモデル") {
                 Picker("使用するモデル", selection: $selectedModelID) {
                     ForEach(ReviewModel.catalog) { model in

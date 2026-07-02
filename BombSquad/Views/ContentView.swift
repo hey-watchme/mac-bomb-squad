@@ -3,12 +3,13 @@ import SwiftUI
 /// Which editor currently has focus. Drives the blue focus highlight and
 /// determines which side gets deployed.
 enum FocusField: Hashable {
-    case draft     // left: original
-    case revision  // right: review result
+    case draft     // top: original
+    case revision  // bottom: review result
 }
 
-/// Root layout: staging on the left, review on the right.
-/// The split mirrors the "staging → live" deploy metaphor.
+/// Root layout: a single Spotlight-style column — input on top, result below.
+/// Three states only: empty → draft → result (design principle 3.5). The
+/// right-Shift single tap moves focus between the two editors (top ↔ bottom).
 struct ContentView: View {
     @StateObject private var viewModel: ReviewViewModel
 
@@ -24,19 +25,26 @@ struct ContentView: View {
         _viewModel = StateObject(wrappedValue: viewModel())
     }
 
+    /// True once the bottom area holds live content (spinner or result), at
+    /// which point the input yields most of the vertical space to it.
+    private var isResultActive: Bool {
+        viewModel.result != nil || viewModel.isLoading
+    }
+
     var body: some View {
         Group {
             if viewModel.sessionKind == .vision {
                 VisionPanelView(viewModel: viewModel)
-                    .frame(minWidth: 760, minHeight: 520)
+                    .frame(minWidth: 900, minHeight: 600)
             } else {
-                HSplitView {
+                VStack(spacing: 0) {
                     StagingEditorView(viewModel: viewModel, focusedField: $viewModel.focusedField)
-                        .frame(minWidth: 360, idealWidth: 440)
+                        .frame(maxHeight: isResultActive ? 190 : .infinity)
                     ReviewPanelView(viewModel: viewModel, focusedField: $viewModel.focusedField)
-                        .frame(minWidth: 380, idealWidth: 460)
+                        .frame(maxHeight: .infinity)
                 }
-                .frame(minWidth: 820, minHeight: 560)
+                .animation(.spring(duration: 0.35), value: isResultActive)
+                .frame(minWidth: 620, minHeight: 640)
             }
         }
         .onAppear {

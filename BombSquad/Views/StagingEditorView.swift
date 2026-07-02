@@ -23,34 +23,36 @@ struct StagingEditorView: View {
     private var isTransform: Bool { viewModel.mode == .transform }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            // Single slim header row: mode, context chip, char count.
+            HStack(spacing: 8) {
                 Label(isTransform ? "受信メッセージ" : "原文",
                       systemImage: isTransform ? "tray.and.arrow.down" : "doc.plaintext")
                     .font(.headline)
+                if let context = viewModel.situationalContext, !viewModel.isContextExcluded {
+                    SituationalContextChip(context: context) {
+                        viewModel.excludeContext()
+                    }
+                }
                 Spacer()
                 Text("\(viewModel.draft.count) 文字")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
 
             // Transform mode is entered implicitly (text was selected at summon
             // time), so say it out loud — otherwise "send = copy only" reads as
             // a bug when the user meant to compose.
             if isTransform {
-                Label("受信モード: 選択したメッセージを読みやすく整理します。結果はクリップボードへのコピーのみで、相手には何も送信されません。",
+                Label("受信モード: 読みやすく整理します。結果はコピーのみで、相手には送信されません。",
                       systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(8)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            }
-
-            if let context = viewModel.situationalContext, !viewModel.isContextExcluded {
-                SituationalContextChip(context: context) {
-                    viewModel.excludeContext()
-                }
             }
 
             // Enter sends the original text as-is (after the IME confirms any

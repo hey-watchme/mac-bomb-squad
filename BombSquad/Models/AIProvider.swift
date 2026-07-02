@@ -100,8 +100,16 @@ enum AppSettings {
     static let isHistoryEnabledKey = "isHistoryEnabled"
     static let isContextCaptureEnabledKey = "isContextCaptureEnabled"
     static let isMemoryEnabledKey = "isMemoryEnabled"
+    static let outputLanguageKey = "outputLanguage"
     static let localHistoryLimit = 100
     static let defaultVisionModelID = "gpt-5.4-mini"
+
+    /// Persisted default for the deliverable language. Lives in settings (not
+    /// the panel) since M3-C stripped the panel down to input + result.
+    static func outputLanguage() -> OutputLanguage {
+        let stored = UserDefaults.standard.string(forKey: outputLanguageKey)
+        return stored.flatMap(OutputLanguage.init(rawValue:)) ?? .japanese
+    }
 
     static func selectedModel() -> ReviewModel {
         ReviewModel.find(id: UserDefaults.standard.string(forKey: selectedModelKey))

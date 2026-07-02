@@ -20,17 +20,6 @@ struct ReviewPanelView: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
-                // Output language for the result. Changing it marks the review
-                // stale, so the next right-Shift double-tap re-runs in that language.
-                Picker("出力言語", selection: $viewModel.outputLanguage) {
-                    ForEach(OutputLanguage.allCases) { lang in
-                        Text(lang.displayName).tag(lang)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-                .help("レビュー結果（送る文／読みやすくした文）の言語")
             }
 
             if let message = viewModel.errorMessage {
@@ -101,13 +90,23 @@ struct ReviewPanelView: View {
 
         Divider()
 
-        // The process (summary, findings, diff) below the result.
+        // The process below the result, diff first: "what changed and why"
+        // must be readable in one second (design principle 3.5).
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text(result.summary)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                // The original→revision diff only makes sense when editing one's
+                // own outgoing draft. On the receiving side we are not correcting
+                // the sender's text, so showing a diff is meaningless (and reads
+                // as if we were rewriting them). Hide it in transform mode.
+                if viewModel.mode != .transform {
+                    DiffView(original: viewModel.draft, revised: viewModel.revisedDraft)
+                        .frame(minHeight: 96, maxHeight: 180)
+                }
 
                 if result.issues.isEmpty {
                     Label(viewModel.mode == .transform
@@ -119,20 +118,10 @@ struct ReviewPanelView: View {
                 } else {
                     ForEach(result.sortedIssues) { IssueCard(issue: $0, mode: viewModel.mode) }
                 }
-
-                // The original→revision diff only makes sense when editing one's
-                // own outgoing draft. On the receiving side we are not correcting
-                // the sender's text, so showing a diff is meaningless (and reads
-                // as if we were rewriting them). Hide it in transform mode.
-                if viewModel.mode != .transform {
-                    Text("変更点（原文 → 提案）").font(.subheadline).bold()
-                    DiffView(original: viewModel.draft, revised: viewModel.revisedDraft)
-                        .frame(height: 120)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxHeight: 240)
+        .frame(maxHeight: 300)
     }
 
     /// While the (auto-)review runs, fill the result field with a spinner so the
