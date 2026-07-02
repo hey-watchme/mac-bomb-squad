@@ -25,11 +25,39 @@ final class ShiftGestureMonitor {
     private var longPressWork: DispatchWorkItem?
     private var singleTapWork: DispatchWorkItem?
     private var monitors: [Any] = []
+    private var trustPollTimer: Timer?
+    /// First few received events are logged to diagnose the intermittent
+    /// "gestures dead right after launch" report (master plan M1 known bug).
+    private var diagnosticLogBudget = 6
 
     // Right Shift physical key code.
     private let shiftKeyCode: UInt16 = 60
 
     func start() {
+        let trusted = AccessibilityPermission.isTrusted
+        NSLog("BombSquad gesture: monitors starting (AX trusted: %@)", trusted ? "yes" : "no")
+        registerMonitors()
+
+        // Global event monitors registered while the app is not yet trusted for
+        // Accessibility never start delivering events, even after the user
+        // grants the permission — the first launch would need an app restart.
+        // Watch for the grant and re-register once it arrives.
+        guard !trusted else { return }
+        trustPollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            guard AccessibilityPermission.isTrusted else { return }
+            timer.invalidate()
+            self.trustPollTimer = nil
+            NSLog("BombSquad gesture: accessibility granted; re-registering monitors")
+            self.removeMonitors()
+            self.registerMonitors()
+        }
+    }
+
+    private func registerMonitors() {
         let flags: (NSEvent) -> Void = { [weak self] in self?.handleFlags($0) }
         let keys: (NSEvent) -> Void = { [weak self] _ in self?.invalidatePending() }
 
@@ -39,7 +67,19 @@ final class ShiftGestureMonitor {
         monitors.append(NSEvent.addLocalMonitorForEvents(matching: .keyDown) { keys($0); return $0 } as Any)
     }
 
+    private func removeMonitors() {
+        for monitor in monitors {
+            NSEvent.removeMonitor(monitor)
+        }
+        monitors.removeAll()
+    }
+
     private func handleFlags(_ event: NSEvent) {
+        if diagnosticLogBudget > 0 {
+            diagnosticLogBudget -= 1
+            NSLog("BombSquad gesture: flagsChanged received (keyCode %d, shift %@)",
+                  event.keyCode, event.modifierFlags.contains(.shift) ? "down" : "up")
+        }
         guard event.keyCode == shiftKeyCode else {
             // Another modifier changed → not a clean Right-Shift gesture.
             invalidatePending()
