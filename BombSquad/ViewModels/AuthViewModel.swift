@@ -132,13 +132,26 @@ final class AuthViewModel: ObservableObject {
     }
 
     private func handleAuthStateChange(_ change: BombSquadAuthClient.AuthStateChange) async {
+        NSLog("BombSquad sync: auth event %@ (session: %@)",
+              String(describing: change.event), change.session == nil ? "none" : "present")
         do {
             switch change.event {
             case .initialSession:
                 try await refreshState(session: change.session, shouldBootstrap: change.session != nil)
+                // Normal launches restore the session asynchronously and emit
+                // .initialSession (not .signedIn), after the launch-time sync
+                // in MemorySyncService.start() has already no-opped without a
+                // session — so this is the trigger that makes startup sync work.
+                if change.session != nil {
+                    Task { await MemorySyncService.shared.syncNow() }
+                }
             case .signedIn:
                 try await refreshState(session: change.session, shouldBootstrap: true)
                 statusMessage = authMethodLabel.map { "\($0)でログインしました。" } ?? "ログインしました。"
+                // Gateway access just became available (or a new user signed
+                // in on this device) — sync memory right away rather than
+                // waiting for the next local edit.
+                Task { await MemorySyncService.shared.syncNow() }
             case .tokenRefreshed, .userUpdated, .mfaChallengeVerified, .passwordRecovery:
                 try await refreshState(session: change.session, shouldBootstrap: false)
             case .signedOut, .userDeleted:

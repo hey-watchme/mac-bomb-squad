@@ -363,7 +363,16 @@ M3 の Gateway 移行時にサーバー側へ移す。
     貼り付けが50文字未満だと無効化される仕様だが、理由の表示が無く分かりにくかったため、
     不足文字数のヒント表示を追加（[`MemoryView.swift`](../BombSquad/Views/Management/MemoryView.swift)）
   - メモリ post-deploy distillation（送信後の自動学習）は未確認（別途確認予定）
-  残り: メモリ同期（`bs_memory_cards` + 同期 API）→ Stripe。
+  - **メモリ同期（2026-07-03 完了・実機確認済み）**: `bs_memory_cards`（tombstone 付き、
+    user スコープ RLS。migration `0002_bs_memory_cards.sql`）＋ Gateway `GET/PUT /api/memory/cards`
+    （`updated_at` 勝ちマージ、PUT 1往復で push+pull 完結、削除は tombstone 伝搬）＋
+    macOS [`MemorySyncService`](../BombSquad/Services/MemorySyncService.swift)（起動時＋編集時
+    2.5秒デバウンス同期、Gateway 未設定/未ログイン時は no-op）。実機で起動時同期・編集同期・
+    ループ無しを確認。検証中に発見・修正した 2 件: (1) 通常起動は `.signedIn` でなく
+    `.initialSession` イベントで復元されるため起動時同期が発火しなかった、(2) Swift の
+    `UUID().uuidString` は大文字・Postgres uuid は小文字を返すため、同期のたびカードが二重化
+    （生成時小文字化＋既存 ID 正規化マイグレーションで解消）。
+  残り: Stripe 課金（アカウント構造オーナー整理待ち）。
 - **M3-C（実装中、`feature/universal-io`、2026-07-02 着手）**: パネル UI 刷新。
   デザイン原則 3.5 を全面適用する。フェーズ分割:
   - **C1 情報設計**: パネルを Spotlight/Raycast 型の縦 1 カラム（1 入力欄＋結果、

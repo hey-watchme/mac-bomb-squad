@@ -50,6 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = AuthViewModel.shared
         // Guide the user to grant Accessibility once; needed for paste injection.
         AccessibilityPermission.prompt()
+        // Sync memory cards with the gateway now, and on every future local
+        // edit (debounced). No-op until the gateway is configured and the
+        // user is signed in.
+        Task { await MemorySyncService.shared.start() }
         // Pre-register sound cues so the first one is instant.
         SoundFeedback.prepare()
         // Pre-request mic access, then warm up the audio system off the hot path.

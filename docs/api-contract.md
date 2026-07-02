@@ -24,12 +24,12 @@ drift.
   - `POST /api/ai/transcribe` (2026-07-02, M3-B)
   - `POST /api/ai/memory/distill` (2026-07-02, M3-B)
   - `POST /api/ai/vision` (2026-07-02, M3-B)
+  - `GET/PUT /api/memory/cards` (2026-07-02, M3-B)
 
 Future routes will reuse the same authentication and envelope conventions:
 
 - `POST /api/ai/transform`
 - `POST /api/ai/analyze-audio`
-- `GET/PUT/DELETE /api/memory/cards` (memory sync)
 
 ## Authentication
 
@@ -445,6 +445,92 @@ Added 2026-07-02 (Universal I/O M3-B). Screenshot interpretation
 
 Usage events: `operation = vision`, `unit_type = call`. There is no hard
 Vision quota yet (same policy as transcribe).
+
+## GET/PUT /api/memory/cards
+
+Added 2026-07-02 (Universal I/O M3-B). Memory-card sync: persona/relationship
+cards authored client-side (bootstrap, distill, user edits) live in local
+SQLite; this route is the only place they leave the device, so a signed-in
+user's cards are shared across their Macs. There is no separate quota check
+beyond the standard entitlement gate, and no usage event is recorded (these
+are not LLM calls).
+
+There is no `DELETE`. A deletion is expressed as a tombstone: the client sets
+`deleted_at` on the card and sends it through `PUT` like any other update.
+
+### Card Object
+
+All timestamps are epoch seconds (`number`), matching the client's SQLite
+representation -- this is the one place in the contract where timestamps are
+not ISO 8601 strings, since the card's `created_at`/`updated_at` are compared
+directly against the client's local logical clock.
+
+```json
+{
+  "id": "8d74bb7a-54aa-4b7b-a947-b68f4a34b5d2",
+  "kind": "persona",
+  "subject": null,
+  "content_md": "（カード本文 Markdown）",
+  "source": "bootstrap",
+  "created_at": 1751500800.0,
+  "updated_at": 1751500800.0,
+  "deleted_at": null
+}
+```
+
+- `id`: required, client-generated UUID. Stable across syncs; also the
+  server-side primary key.
+- `kind`: required, `persona` or `relationship`.
+- `subject`: optional string, null for `persona` cards; the counterpart name
+  for `relationship` cards.
+- `content_md`: required string.
+- `source`: required, `bootstrap`, `distilled`, or `user_edited`.
+- `created_at` / `updated_at`: required numbers (epoch seconds). `updated_at`
+  is the client's logical clock, not a server timestamp, and is what conflict
+  resolution compares.
+- `deleted_at`: number or `null`. Non-null marks the card as a tombstone.
+
+### GET /api/memory/cards
+
+Returns every card owned by the authenticated user, including tombstones, so
+the client can reconcile local deletes with cards it hasn't seen yet.
+
+```json
+{ "cards": [ /* Card Object, see above */ ] }
+```
+
+### PUT /api/memory/cards
+
+Body: the client's full local card set.
+
+```json
+{ "cards": [ /* Card Object, see above; max 200 entries */ ] }
+```
+
+Rules:
+
+- `cards` is required, an array, and capped at 200 entries; a malformed card
+  (bad `kind`/`source` enum, wrong field type, missing required field) or an
+  oversized array is rejected with `BAD_REQUEST` for the whole request.
+- `tenant_id` and `user_id` are never read from the request body; the gateway
+  stamps every written row with the values resolved from the caller's access
+  token.
+- **Conflict resolution is last-write-wins on `updated_at`.** For each
+  incoming card:
+  - if no row with that `id` exists yet, it is inserted;
+  - if a row exists and belongs to the caller, it is overwritten only when
+    `incoming.updated_at` is strictly greater than the stored value;
+  - if a row exists but belongs to a different user (an `id` collision), the
+    incoming card is silently skipped rather than overwritten.
+- The response is the **merged full server state** for the caller (same
+  shape as `GET`), so a single `PUT` round trip also completes a pull --
+  clients do not need to follow a `PUT` with a `GET`.
+
+### Success Response
+
+```json
+{ "cards": [ /* Card Object, see above */ ] }
+```
 
 ## Deferred Routes
 

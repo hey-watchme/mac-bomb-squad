@@ -203,6 +203,24 @@ final class MemoryViewModel: ObservableObject {
     @Published var isGenerating = false
     @Published var errorMessage: String?
 
+    private var syncObserver: NSObjectProtocol?
+
+    init() {
+        // Another device's edit landed via sync — refresh so it shows up
+        // here without the user having to reopen the page.
+        syncObserver = NotificationCenter.default.addObserver(
+            forName: .memoryCardsDidSync, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { await self?.reload() }
+        }
+    }
+
+    deinit {
+        if let syncObserver {
+            NotificationCenter.default.removeObserver(syncObserver)
+        }
+    }
+
     func reload() async {
         do {
             personaCard = try await MemoryStore.shared.personaCard()
