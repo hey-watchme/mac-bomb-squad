@@ -69,7 +69,7 @@ struct ManagementView: View {
             detail
                 .frame(minWidth: 460, minHeight: 520)
         }
-        .navigationTitle("Bomb Squad")
+        .navigationTitle("Universal I/O")
         .frame(minWidth: 720, minHeight: 560)
     }
 

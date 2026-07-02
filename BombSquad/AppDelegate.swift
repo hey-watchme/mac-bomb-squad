@@ -263,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false
         )
-        window.title = "Bomb Squad"
+        window.title = "Universal I/O"
         window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = false
         window.contentViewController = NSHostingController(rootView: ManagementView())
@@ -337,7 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             styleMask: [.borderless],
             backing: .buffered, defer: false
         )
-        panel.title = "Bomb Squad"
+        panel.title = "Universal I/O"
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
         panel.level = .floating
