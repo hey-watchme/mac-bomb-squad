@@ -54,11 +54,11 @@ Current runtime resolution order:
 3. `Info.plist` keys with the same names
 
 That behavior is implemented in
-[BombSquadConfig.swift](/Users/kaya.matsumoto/projects/bomb-squad/app-mac/BombSquad/Services/BombSquadConfig.swift:1).
+[BombSquadConfig.swift](/Users/kaya.matsumoto/projects/universal-io/app-mac/BombSquad/Services/BombSquadConfig.swift:1).
 
 Recommended local file for macOS development:
 
-- `/Users/kaya.matsumoto/projects/bomb-squad/app-mac/BombSquad.local.plist`
+- `/Users/kaya.matsumoto/projects/universal-io/app-mac/BombSquad.local.plist`
 
 Optional fallback path when launching the built app outside the repo:
 

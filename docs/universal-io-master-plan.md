@@ -170,8 +170,9 @@ Android、Windows へ展開する。**ペルソナ・メモリ・課金はデバ
 
 ## 4. 現状コードベースの地図（実装者向け）
 
-リポジトリ: `git@github.com:universal-io/app-mac.git`（ローカル: `~/projects/bomb-squad/app-mac`。
-2026-07-02 に GitHub org を `hey-watchme/mac-bomb-squad` から `universal-io/app-mac` へ移行）
+リポジトリ: `git@github.com:universal-io/app-mac.git`（ローカル: `~/projects/universal-io/app-mac`。
+2026-07-02 に GitHub org を `hey-watchme/mac-bomb-squad` から `universal-io/app-mac` へ移行し、
+同日ローカルの親フォルダも `bomb-squad` から `universal-io` へ改名済み）
 ビルド: `xcodegen generate` → `xcodebuild -project BombSquad.xcodeproj -scheme BombSquad -configuration Debug build`
 コード内コメント・識別子は英語（CLAUDE.md 規約）。リネームは M5 まで行わず `BombSquad` 名前空間のまま実装する。
 
@@ -383,7 +384,8 @@ M3 の Gateway 移行時にサーバー側へ移す。
   - **C5 既知バグ**: アプリ起動直後に右Shift 2回が数回反応しない問題の切り分けと修正
     （M1 の「既知の不具合」参照）。
   実施順: C1 → C2 → C3 → C5 → C4。
-  進捗（2026-07-02）: C1・C2・C3・C5 実装済み（ビルド確認済み・実機確認待ち）。
+  進捗（2026-07-02）: C1・C2・C3・C5 実装済み・**実機確認済み**（同日、レイアウト3状態・
+  SSE ストリーミング・Liquid Glass・起動直後ジェスチャをすべて確認）。
   C4 は表示層（CFBundleDisplayName・ウィンドウタイトル・メニューバーグリフ）まで実施。
   Bundle ID / URL scheme の変更はオーナーの ID 決定待ち。
 
