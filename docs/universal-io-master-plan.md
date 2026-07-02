@@ -339,7 +339,7 @@ M3 の Gateway 移行時にサーバー側へ移す。
 
 ### M3: Gateway 移行・課金・同期
 
-ステータス: M3-A 実装中（`feature/universal-io-m2` ブランチ上で継続）。
+ステータス: M3-A 完了・実機検証済み（2026-07-02、`feature/universal-io` ブランチにコミット済み: `e4e0dd7`）。
 **決定（2026-07-02、オーナー確認済み）**: Gateway は FastAPI ではなく
 **Next.js Route Handlers（`web/`、Vercel）**。既存の
 [auth-billing-infra-plan.md](auth-billing-infra-plan.md)・[api-contract.md](api-contract.md)・
