@@ -1,8 +1,8 @@
 import Foundation
 
 /// Speech-to-text via Groq's OpenAI-compatible audio transcription endpoint.
-/// MVP uses whisper-large-v3; an ASR model catalog can come later.
-struct GroqTranscriber {
+/// BYOK developer fallback; the production path is GatewayTranscriber.
+struct GroqTranscriber: Transcriber {
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
     private let model = "whisper-large-v3"
 

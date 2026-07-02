@@ -29,7 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let authClient = BombSquadAuthClient.shared
     private let gesture = ShiftGestureMonitor()
     private let recorder = AudioRecorder()
-    private let transcriber = GroqTranscriber()
+    /// Resolved per dictation because gateway availability follows sign-in state.
+    private var transcriber: any Transcriber { GatewayTranscriber.make() ?? GroqTranscriber() }
     private let screenshotCapture = ScreenshotCaptureService()
     private let screenshotCaptureCue = ScreenshotCaptureCuePresenter()
     /// Guards against duplicate begin/end callbacks so the cues fire exactly once.

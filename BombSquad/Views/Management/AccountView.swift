@@ -5,6 +5,8 @@ import SwiftUI
 /// account, so login and registration are the same flow here.
 struct AccountView: View {
     @ObservedObject var viewModel: AuthViewModel
+    /// Latest quota envelope seen on a gateway response (no extra request).
+    @ObservedObject private var quotaStore = GatewayQuotaStore.shared
     let config: BombSquadConfig.Snapshot
 
     var body: some View {
@@ -41,6 +43,12 @@ struct AccountView: View {
                         infoRow("契約状態", summary.state.label)
                         Divider()
                         infoRow("月間レビュー枠", "\(summary.monthlyReviewLimit) 回")
+                    }
+                    if let quota = quotaStore.latest {
+                        Divider()
+                        infoRow("今月の利用", "\(quota.used) / \(quota.limit) 回（残り \(quota.remaining) 回）")
+                        Divider()
+                        infoRow("次回リセット", formatResetDate(quota.resetsAt))
                     }
                     if let method = viewModel.authMethodLabel {
                         Divider()
@@ -153,5 +161,19 @@ struct AccountView: View {
     private func redact(_ value: String) -> String {
         if value.count <= 12 { return value }
         return "\(value.prefix(8))...\(value.suffix(4))"
+    }
+
+    private func formatResetDate(_ iso: String) -> String {
+        // The gateway emits JS toISOString() (fractional seconds); plain
+        // ISO 8601 is accepted too.
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = fractional.date(from: iso) ?? ISO8601DateFormatter().date(from: iso) else {
+            return iso
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy年M月d日"
+        return formatter.string(from: date)
     }
 }

@@ -19,13 +19,17 @@ drift.
 
 - Contract version: `v1`
 - Base path: `/api`
-- First implemented route: `POST /api/ai/review`
+- Implemented routes:
+  - `POST /api/ai/review`
+  - `POST /api/ai/transcribe` (2026-07-02, M3-B)
+  - `POST /api/ai/memory/distill` (2026-07-02, M3-B)
+  - `POST /api/ai/vision` (2026-07-02, M3-B)
 
 Future routes will reuse the same authentication and envelope conventions:
 
 - `POST /api/ai/transform`
-- `POST /api/ai/transcribe`
 - `POST /api/ai/analyze-audio`
+- `GET/PUT/DELETE /api/memory/cards` (memory sync)
 
 ## Authentication
 
@@ -83,6 +87,7 @@ Server-only vars:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `BOMB_SQUAD_DEFAULT_MODEL_VENDOR`
 - `BOMB_SQUAD_DEFAULT_MODEL_ID`
+- `BOMB_SQUAD_VISION_MODEL_ID`
 - `BOMB_SQUAD_FREE_MONTHLY_REVIEW_LIMIT`
 - `OPENAI_API_KEY`
 - `GROQ_API_KEY`
@@ -320,23 +325,114 @@ Expected client mapping:
 - `response.meta.model_vendor + model_id` -> display string
 - `response.quota` -> future account/quota UI
 
+## POST /api/ai/transcribe
+
+Added 2026-07-02 (Universal I/O M3-B). Speech-to-text proxy (Groq Whisper).
+The gateway owns the provider key and the hallucination filter.
+
+### Request (multipart/form-data)
+
+- `request_id`: required string
+- `platform`: required string, `macos`, `ios`, `android`, or `web`
+- `app_version`: optional string
+- `file`: required audio upload (m4a; max 25MB)
+
+### Success Response
+
+```json
+{
+  "request_id": "...",
+  "result": { "text": "文字起こし結果" },
+  "meta": {
+    "model_vendor": "groq",
+    "model_id": "whisper-large-v3",
+    "duration_seconds": 4.2,
+    "latency_ms": 950
+  }
+}
+```
+
+### Rules
+
+- Entitlement must be active or trialing; there is no hard ASR quota yet.
+  Usage events are recorded (`operation = transcribe`, `unit_type = seconds`,
+  `input_units` = rounded audio duration) so a cap can be enforced later.
+- The audio content is never persisted by the gateway.
+
+## POST /api/ai/memory/distill
+
+Added 2026-07-02 (Universal I/O M3-B). Memory-card LLM calls: persona
+bootstrap (onboarding) and post-deploy distillation. Card storage stays
+client-side until the memory sync API ships; the gateway never persists
+any of this content.
+
+### Request Body
+
+```json
+{
+  "request_id": "...",
+  "operation": "bootstrap",
+  "input": {
+    "samples": "（bootstrap: 過去メッセージのサンプル）",
+    "original": "（distill: ユーザーの下書き）",
+    "suggestion": "（distill: AI 提案文）",
+    "final": "（distill: 実際に送信した文）",
+    "context": { "app_name": "Slack", "window_title": "...", "conversation_excerpt": "..." }
+  },
+  "client": { "platform": "macos", "app_version": "0.1.0" }
+}
+```
+
+- `operation`: required, `bootstrap` or `distill`
+- `bootstrap` requires `input.samples`; `distill` requires
+  `input.original` / `input.suggestion` / `input.final` (`input.context` optional)
+
+### Success Response
+
+- `bootstrap`: `result = { "persona_md": "（スタイルプロファイル Markdown）" }`
+- `distill`: `result = { "persona_note": string | null, "relationship_subject": string | null, "relationship_note": string | null }`
+- `meta`: `operation`, `model_vendor`, `model_id`, `latency_ms`
+
+Usage events: `operation = memory_distill`, `unit_type = call`, token counts
+in `input_units` / `output_units`.
+
+## POST /api/ai/vision
+
+Added 2026-07-02 (Universal I/O M3-B). Screenshot interpretation
+(OpenAI Responses API). The image is never persisted by the gateway.
+
+### Request Body
+
+```json
+{
+  "request_id": "...",
+  "operation": "vision",
+  "input": {
+    "image_base64": "（base64。最大4M文字 ≒ 3MB）",
+    "media_type": "image/png",
+    "instruction": "（任意の追加指示）"
+  },
+  "preferences": { "output_language": "japanese" },
+  "client": { "platform": "macos", "app_version": "0.1.0" }
+}
+```
+
+- `media_type`: `image/png` or `image/jpeg`. Clients should re-encode large
+  PNG captures as JPEG to stay under the size limit (Vercel body cap ~4.5MB).
+
+### Success Response
+
+`result` is the interpretation JSON as produced by the model
+(`summary`, `visible_text`, `interpretation`, `suggested_actions`,
+`uncertainties`); clients decode it flexibly. `meta` carries
+`output_language`, `model_vendor`, `model_id`, `latency_ms`.
+
+Usage events: `operation = vision`, `unit_type = call`. There is no hard
+Vision quota yet (same policy as transcribe).
+
 ## Deferred Routes
 
 These are reserved but not implemented in the first pass.
-
-### POST /api/ai/transcribe
-
-Expected future input:
-
-- audio file or multipart upload
-- `request_id`
-- `client`
-
-Expected future output:
-
-- transcript text
-- duration
-- quota usage
 
 ### POST /api/ai/analyze-audio
 

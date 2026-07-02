@@ -273,7 +273,7 @@ Slack で会話本文、VS Code で開いているファイル内容の取得を
 
 ### M2: Persona / Relationship メモリとマイページ（L2・L3）
 
-ステータス: 実装中（`feature/universal-io-m2`）。全スコープ実装済み・実機確認待ち。
+ステータス: 完了（`feature/universal-io` にコミット済み: `ed42931`、2026-07-02 実機確認済み）。
 メモリ生成・蒸留の LLM 呼び出しは暫定で Groq `gpt-oss-120b` 直叩き（`MemoryDistiller`）。
 M3 の Gateway 移行時にサーバー側へ移す。
 
@@ -345,12 +345,17 @@ M3 の Gateway 移行時にサーバー側へ移す。
 [auth-billing-infra-plan.md](auth-billing-infra-plan.md)・[api-contract.md](api-contract.md)・
 適用済み Supabase スキーマ（`bs_` テーブル群）に従う。段階分割で進める:
 
-- **M3-A（実装済み・検証待ち）**: `web/app/api/ai/review` Gateway（Supabase JWT 検証、
+- **M3-A（完了・実機検証済み）**: `web/app/api/ai/review` Gateway（Supabase JWT 検証、
   テナント解決、無料枠クォータ 50/月、Groq/OpenAI 呼び出し、`bs_usage_events` 記録）＋
   macOS `GatewayReviewClient`（既定。BYOK 直叩きは Gateway 未設定時のフォールバック）。
   context/memory はリクエストで受け取りプロンプトにのみ使用（保存しない、契約書参照）。
-- **M3-B（未着手）**: Stripe 課金（アカウント構造は着手時に整理）、クォータ UI、
-  Vision/ASR/メモリ蒸留の Gateway 移行、メモリ同期。
+- **M3-B（実装中、`feature/universal-io`）**: Stripe 課金（アカウント構造はオーナー整理待ちのため
+  最後に回す）、クォータ UI、Vision/ASR/メモリ蒸留の Gateway 移行、メモリ同期。
+  進捗（2026-07-02）: Gateway 移行（ASR `/api/ai/transcribe`・蒸留 `/api/ai/memory/distill`・
+  Vision `/api/ai/vision`）とクォータ表示（マイページ、review レスポンスの quota を利用）を実装済み・
+  実機確認待ち。macOS 側は `GatewayAPI` に共通化し、BYOK 直叩きは従来どおりフォールバック。
+  ASR/Vision/蒸留にハードクォータは未設定（使用量記録のみ。上限は Stripe プラン導入時に設定）。
+  残り: メモリ同期（`bs_memory_cards` + 同期 API）→ Stripe。
 - **M3-C（未着手）**: パネル UI 切り詰め（プルダウン撤去・ストリーミング）、Liquid Glass、
   リブランド第 1 段（Bundle ID 変更）。
 

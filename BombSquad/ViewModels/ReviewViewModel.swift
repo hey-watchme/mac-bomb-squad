@@ -79,17 +79,17 @@ final class ReviewViewModel: ObservableObject {
     /// Optional fixed provider (used by tests/previews). When nil, the provider
     /// is built from the user's selection at review time.
     private let overrideProvider: ReviewProvider?
-    private let visionProvider: VisionProvider
+    private let overrideVisionProvider: VisionProvider?
     private let deployer: Deployer
 
     init(
         provider: ReviewProvider? = nil,
-        visionProvider: VisionProvider = OpenAIVisionClient(),
+        visionProvider: VisionProvider? = nil,
         deployer: Deployer = ClipboardDeployer(),
         mode: ReviewMode = .compose
     ) {
         self.overrideProvider = provider
-        self.visionProvider = visionProvider
+        self.overrideVisionProvider = visionProvider
         self.deployer = deployer
         self.mode = mode
     }
@@ -106,6 +106,13 @@ final class ReviewViewModel: ObservableObject {
         case .anthropic: return ClaudeClient(model: model.apiModelID)
         case .openAI, .groq: return OpenAICompatibleClient(model: model)
         }
+    }
+
+    /// Same gateway-first resolution as `currentProvider()`, for Vision.
+    private func currentVisionProvider() -> VisionProvider {
+        if let overrideVisionProvider { return overrideVisionProvider }
+        if let gateway = GatewayVisionClient.make() { return gateway }
+        return OpenAIVisionClient()
     }
 
     var canReview: Bool {
@@ -296,14 +303,17 @@ final class ReviewViewModel: ObservableObject {
         let started = Date()
         defer { isInterpretingVision = false }
 
+        let provider = currentVisionProvider()
         do {
-            let result = try await visionProvider.interpret(
+            let result = try await provider.interpret(
                 imageURL: visionImage.url,
                 instruction: visionInstruction,
                 language: outputLanguage
             )
             self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
-            self.lastModelName = "OpenAI · \(result.modelID ?? AppSettings.selectedVisionModelID())"
+            self.lastModelName = provider is GatewayVisionClient
+                ? "I//O Cloud"
+                : "OpenAI · \(result.modelID ?? AppSettings.selectedVisionModelID())"
             self.visionResult = result
         } catch {
             self.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

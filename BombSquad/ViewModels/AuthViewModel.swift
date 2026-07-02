@@ -102,6 +102,7 @@ final class AuthViewModel: ObservableObject {
         Task {
             do {
                 try await authClient.signOut()
+                GatewayQuotaStore.shared.clear()
                 await MainActor.run {
                     self.initializedUserID = nil
                     self.tenantID = nil

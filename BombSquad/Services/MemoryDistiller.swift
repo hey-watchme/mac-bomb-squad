@@ -1,11 +1,10 @@
 import Foundation
 
-/// LLM calls that build and grow memory cards. Uses the Groq OpenAI-compatible
-/// endpoint with the default high-quality model — memory work happens off the
-/// review hot path, so a missing key or a failed call must never surface as a
-/// user-facing error (except in the explicit bootstrap flow, which reports).
-///
-/// M3 moves these calls behind the Gateway; keep this surface small.
+/// LLM calls that build and grow memory cards. The production path goes
+/// through the gateway (POST /api/ai/memory/distill); the BYOK Groq direct
+/// call remains as a developer fallback. Memory work happens off the review
+/// hot path, so a failed call must never surface as a user-facing error
+/// (except in the explicit bootstrap flow, which reports).
 enum MemoryDistiller {
     private static let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
     private static let modelID = "openai/gpt-oss-120b"
@@ -29,8 +28,18 @@ enum MemoryDistiller {
     /// Generate a persona card from pasted past messages. Throws so the
     /// onboarding UI can show what went wrong.
     static func generatePersonaCard(fromSamples samples: String) async throws -> String {
-        let user = "以下はユーザーが過去に実際に送ったメッセージのサンプルです。スタイルプロファイルを作成してください。\n\n\(samples)"
-        let content = try await chat(system: PersonaPrompt.bootstrapSystem, user: user, jsonMode: false)
+        let content: String
+        if let api = GatewayAPI.make() {
+            let result = try await gatewayCall(
+                api: api,
+                operation: "bootstrap",
+                input: ["samples": samples]
+            )
+            content = result["persona_md"] as? String ?? ""
+        } else {
+            let user = "以下はユーザーが過去に実際に送ったメッセージのサンプルです。スタイルプロファイルを作成してください。\n\n\(samples)"
+            content = try await chat(system: PersonaPrompt.bootstrapSystem, user: user, jsonMode: false)
+        }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw DistillerError.badResponse("empty result") }
         return trimmed
@@ -48,14 +57,31 @@ enum MemoryDistiller {
         context: SituationalContext?
     ) async {
         do {
-            let user = PersonaPrompt.distillUser(
-                original: original, suggestion: suggestion, final: final, context: context
-            )
-            let content = try await chat(system: PersonaPrompt.distillSystem, user: user, jsonMode: true)
-            guard
-                let jsonData = extractJSON(from: content),
-                let root = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
-            else { return }
+            let root: [String: Any]
+            if let api = GatewayAPI.make() {
+                var input: [String: Any] = [
+                    "original": original,
+                    "suggestion": suggestion,
+                    "final": final,
+                ]
+                if let context {
+                    var contextPayload: [String: Any] = ["app_name": context.appName]
+                    if let title = context.windowTitle { contextPayload["window_title"] = title }
+                    if let excerpt = context.conversationExcerpt { contextPayload["conversation_excerpt"] = excerpt }
+                    input["context"] = contextPayload
+                }
+                root = try await gatewayCall(api: api, operation: "distill", input: input)
+            } else {
+                let user = PersonaPrompt.distillUser(
+                    original: original, suggestion: suggestion, final: final, context: context
+                )
+                let content = try await chat(system: PersonaPrompt.distillSystem, user: user, jsonMode: true)
+                guard
+                    let jsonData = extractJSON(from: content),
+                    let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+                else { return }
+                root = parsed
+            }
 
             if let note = nonEmptyString(root["persona_note"]) {
                 try await MemoryStore.shared.appendPersonaNote(note)
@@ -69,7 +95,40 @@ enum MemoryDistiller {
         }
     }
 
-    // MARK: - Shared chat call
+    // MARK: - Gateway call
+
+    /// Calls POST /api/ai/memory/distill and returns the `result` object.
+    private static func gatewayCall(
+        api: GatewayAPI,
+        operation: String,
+        input: [String: Any]
+    ) async throws -> [String: Any] {
+        var request = try await api.authorizedRequest("ai/memory/distill")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "request_id": UUID().uuidString,
+            "operation": operation,
+            "input": input,
+            "client": GatewayAPI.clientPayload(),
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw DistillerError.badResponse("no HTTP response")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw GatewayAPI.error(status: http.statusCode, data: data)
+        }
+        guard
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let result = root["result"] as? [String: Any]
+        else {
+            throw DistillerError.badResponse("unexpected gateway response shape")
+        }
+        return result
+    }
+
+    // MARK: - BYOK fallback chat call
 
     private static func chat(system: String, user: String, jsonMode: Bool) async throws -> String {
         guard let apiKey = KeychainStore.apiKey(account: APIVendor.groq.keychainAccount) else {
