@@ -1,0 +1,31 @@
+import Foundation
+
+/// A snapshot of what the user was looking at when the panel was summoned:
+/// which app, which window, and the surrounding conversation text. This is the
+/// L1 (situational) layer of the context engine — it lets the review infer the
+/// recipient, tone, and what is being asked, instead of judging the draft in
+/// isolation.
+///
+/// Lifetime: one panel session, in memory only. Never persisted.
+struct SituationalContext {
+    let appName: String
+    let bundleID: String?
+    let windowTitle: String?
+    /// Text collected from around the focused field (the conversation thread),
+    /// in rough reading order, trimmed to a budget. Nil when nothing readable
+    /// was found via Accessibility.
+    let conversationExcerpt: String?
+    let capturedAt: Date
+
+    var hasConversation: Bool {
+        !(conversationExcerpt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Short label for the panel chip, e.g. "Slack — #general".
+    var chipLabel: String {
+        if let windowTitle, !windowTitle.isEmpty {
+            return "\(appName) — \(windowTitle)"
+        }
+        return appName
+    }
+}

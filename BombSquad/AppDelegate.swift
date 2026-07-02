@@ -293,6 +293,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showPanel(prefill: String? = nil, mode: ReviewMode = .compose) {
         // Capture the target BEFORE our panel activates and steals focus.
         let target = NSWorkspace.shared.frontmostApplication
+        // Same timing constraint: identify the context source app now; the AX
+        // tree walk itself continues in the background against that pid.
+        let contextTask = SituationalContextService.captureTask()
         let deployer: Deployer
         switch mode {
         case .compose:
@@ -308,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         currentViewModel = viewModel
         MainActor.assumeIsolated {
             viewModel.restorePersistedDraftIfNeeded()
+            viewModel.attachContextCapture(contextTask)
         }
         if let prefill {
             MainActor.assumeIsolated {

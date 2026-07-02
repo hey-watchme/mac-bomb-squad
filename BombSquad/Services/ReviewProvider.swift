@@ -13,5 +13,19 @@ enum ReviewMode {
 /// MVP ships a Claude-backed implementation; a local-LLM implementation
 /// can be swapped in later without touching the UI or the view model.
 protocol ReviewProvider {
-    func review(draft: String, mode: ReviewMode, language: OutputLanguage) async throws -> ReviewResult
+    /// `context` is the optional L1 situational context (frontmost app and the
+    /// conversation around the focused field) captured when the panel was
+    /// summoned; nil when capture is off, not permitted, or excluded by the user.
+    func review(
+        draft: String,
+        mode: ReviewMode,
+        language: OutputLanguage,
+        context: SituationalContext?
+    ) async throws -> ReviewResult
+}
+
+extension ReviewProvider {
+    func review(draft: String, mode: ReviewMode, language: OutputLanguage) async throws -> ReviewResult {
+        try await review(draft: draft, mode: mode, language: language, context: nil)
+    }
 }

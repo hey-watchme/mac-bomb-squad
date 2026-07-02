@@ -98,6 +98,7 @@ enum AppSettings {
     static let selectedModelKey = "selectedModelID"
     static let selectedVisionModelKey = "selectedVisionModelID"
     static let isHistoryEnabledKey = "isHistoryEnabled"
+    static let isContextCaptureEnabledKey = "isContextCaptureEnabled"
     static let localHistoryLimit = 100
     static let defaultVisionModelID = "gpt-5.4-mini"
 
@@ -116,5 +117,14 @@ enum AppSettings {
             return true
         }
         return UserDefaults.standard.bool(forKey: isHistoryEnabledKey)
+    }
+
+    /// L1 situational context capture (frontmost app + surrounding text).
+    /// Default ON; the panel chip lets the user exclude it per session.
+    static func isContextCaptureEnabled() -> Bool {
+        if UserDefaults.standard.object(forKey: isContextCaptureEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: isContextCaptureEnabledKey)
     }
 }

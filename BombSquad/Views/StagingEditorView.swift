@@ -31,6 +31,12 @@ struct StagingEditorView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let context = viewModel.situationalContext, !viewModel.isContextExcluded {
+                SituationalContextChip(context: context) {
+                    viewModel.excludeContext()
+                }
+            }
+
             // Enter sends the original text as-is (after the IME confirms any
             // in-progress conversion); Shift+Enter inserts a newline.
             SendableTextEditor(
@@ -113,6 +119,70 @@ struct StagingEditorView: View {
             }
         }
         .padding()
+    }
+}
+
+/// L1 context chip: shows which screen the review will reference. Click to
+/// inspect exactly what was captured; ✕ excludes it for this session. Making
+/// the captured text inspectable/removable is a privacy commitment, not a
+/// nicety.
+private struct SituationalContextChip: View {
+    let context: SituationalContext
+    let onExclude: () -> Void
+    @State private var showDetail = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button {
+                showDetail.toggle()
+            } label: {
+                Label(context.chipLabel, systemImage: "paperclip")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .buttonStyle(.plain)
+            .help("この画面の内容をレビューの参考にします。クリックで内容を確認")
+            .popover(isPresented: $showDetail, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("参照中の周辺コンテクスト").font(.headline)
+                    Text(context.chipLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let excerpt = context.conversationExcerpt, !excerpt.isEmpty {
+                        ScrollView {
+                            Text(excerpt)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(width: 380, height: 220)
+                    } else {
+                        Text("画面のテキストは読み取れませんでした。アプリ名とウィンドウ名だけを参考にします。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 380, alignment: .leading)
+                    }
+                    Text("この情報は保存されず、このセッションのレビューにだけ使われます。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+            }
+
+            Button {
+                onExclude()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("このセッションでは周辺コンテクストを使いません")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(.quaternary.opacity(0.6), in: Capsule())
     }
 }
 

@@ -60,11 +60,17 @@ final class ReviewViewModel: ObservableObject {
     @Published private(set) var isLoadingRecentHistory = false
     /// Target language for the deliverable (`revisedDraft`). Default Japanese.
     @Published var outputLanguage: OutputLanguage = .japanese
+    /// L1 situational context captured at summon time (shown as a chip).
+    @Published private(set) var situationalContext: SituationalContext?
+    /// True after the user dismissed the chip: no injection for this session.
+    @Published private(set) var isContextExcluded = false
 
     /// The exact draft text and language that produced the current `result`.
     private var reviewedDraft: String?
     private var reviewedLanguage: OutputLanguage?
     private var hasLoadedRecentHistory = false
+    /// Pending background AX capture; resolved lazily on first use.
+    private var contextCaptureTask: Task<SituationalContext?, Never>?
 
     /// Direction of this session: composing an outgoing draft (review/soften)
     /// or transforming a received message (make it readable). Drives the prompt.
@@ -102,6 +108,32 @@ final class ReviewViewModel: ObservableObject {
         sessionKind == .text && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
     }
 
+    /// Hand over the background context capture started at summon time. The
+    /// value is awaited lazily (first review or chip display), never blocking
+    /// the panel from showing.
+    func attachContextCapture(_ task: Task<SituationalContext?, Never>) {
+        contextCaptureTask = task
+        Task { [weak self] in
+            let context = await task.value
+            self?.situationalContext = context
+        }
+    }
+
+    /// Excludes the captured context from this session (chip dismissed).
+    func excludeContext() {
+        isContextExcluded = true
+    }
+
+    /// Context to inject into the next review. The AX walk is budget-bounded
+    /// (~1.5s worst case), so awaiting the pending capture here is safe.
+    private func resolveContext() async -> SituationalContext? {
+        guard !isContextExcluded else { return nil }
+        if situationalContext == nil, let task = contextCaptureTask {
+            situationalContext = await task.value
+        }
+        return situationalContext
+    }
+
     func runReview() async {
         errorMessage = nil
         if result != nil {
@@ -114,8 +146,11 @@ final class ReviewViewModel: ObservableObject {
         defer { isLoading = false }
         let input = draft
         let language = outputLanguage
+        let context = await resolveContext()
         do {
-            let result = try await currentProvider().review(draft: input, mode: mode, language: language)
+            let result = try await currentProvider().review(
+                draft: input, mode: mode, language: language, context: context
+            )
             self.lastDurationMs = Int(Date().timeIntervalSince(started) * 1000)
             self.lastModelName = model.displayName
             self.result = result

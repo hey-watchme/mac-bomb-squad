@@ -6,6 +6,7 @@ import SwiftUI
 struct GeneralSettingsView: View {
     @AppStorage(AppSettings.selectedModelKey) private var selectedModelID = ReviewModel.defaultModel.id
     @AppStorage(AppSettings.isHistoryEnabledKey) private var isHistoryEnabled = true
+    @AppStorage(AppSettings.isContextCaptureEnabledKey) private var isContextCaptureEnabled = true
 
     let config: BombSquadConfig.Snapshot
     @State private var openAIKey: String = ""
@@ -51,6 +52,14 @@ struct GeneralSettingsView: View {
                 configRow("Supabase anon key", entry: config.supabaseAnonKey)
 
                 Text("値の読み取り順は `BombSquad.local.plist` → `ProcessInfo.environment` → `Info.plist` です。通常はリポジトリ直下の `BombSquad.local.plist` を使います。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("周辺コンテクスト") {
+                Toggle("呼び出し時に画面の文脈を読み取る", isOn: $isContextCaptureEnabled)
+                Text("パネルを呼び出した瞬間に、前面アプリと周辺の会話テキストを読み取ってレビューの参考にします。読み取った内容はパネル上のチップから確認・除外でき、保存はされません。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
